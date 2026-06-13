@@ -74,6 +74,42 @@ new to apply, it does nothing.
 > ⚠️ **Never run `npm run seed` or `npm run db:reset` once you have real data.** Both erase your
 > database and reload the demo data. They're only for first-time setup on an empty database.
 
+## Run it always-on (macOS)
+`npm run dev` only runs while its terminal stays open. To have `http://localhost:3000` available all
+the time — no terminal, survives reboots — install it as a background service (a LaunchAgent running
+the production build):
+
+```bash
+npm run build
+bash setup-service.sh
+```
+
+`setup-service.sh` auto-detects your paths, writes `~/Library/LaunchAgents/com.lifeos.app.plist`, and
+starts the service. Then just open `http://localhost:3000` whenever you like.
+
+Useful commands:
+```bash
+launchctl list | grep lifeos              # check it's running (a number in the first column = up)
+launchctl kickstart -k gui/$(id -u)/com.lifeos.app   # restart it (your "apply changes now" command)
+tail -f ~/Library/Logs/LifeOS/app.error.log          # see errors if it won't start
+launchctl bootout gui/$(id -u)/com.lifeos.app        # stop and remove the service
+```
+
+### Refreshing after a change
+Because the service serves a **built** copy of the app (not live-reloading like `npm run dev`), you
+have to rebuild and/or restart the service for changes to show up. Pick the row that matches what you
+changed, then hard-refresh the browser (`Cmd+Shift+R`):
+
+| What you changed | Commands to apply it |
+| --- | --- |
+| `NEXT_PUBLIC_USER_NAME` (the greeting name) | `npm run build` then `launchctl kickstart -k gui/$(id -u)/com.lifeos.app` |
+| `ANTHROPIC_API_KEY` (read live at runtime) | `launchctl kickstart -k gui/$(id -u)/com.lifeos.app` |
+| Code pulled from GitHub | `git pull` → `npm install` → `npm run build` → `launchctl kickstart -k gui/$(id -u)/com.lifeos.app` |
+
+`NEXT_PUBLIC_*` values are baked in at build time, so changing the name needs a fresh `npm run build`;
+the API key is read at runtime, so a restart alone is enough. Your data (`dev.db`) is never touched by
+any of these.
+
 ## Data model
 See `prisma/schema.prisma`. `prisma/seed.ts` loads neutral **example** data (made-up net worth,
 goals, and budget) so the app looks alive on first run — replace it with your own or start empty.
