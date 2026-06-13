@@ -1,0 +1,195 @@
+// LifeOS — Finances schema
+// Prisma 7, SQLite. Run: npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Accounts ----------
+
+model Account {
+  id            String        @id @default(cuid())
+  name          String
+  institution   String // CBA | Westpac | UBank | Manual
+  type          String // transaction | savings | brokerage | super | crypto
+  currency      String        @default("AUD")
+  createdAt     DateTime      @default(now())
+  transactions  Transaction[]
+  importBatches ImportBatch[]
+}
+
+// ---------- Category taxonomy (3-tier: Category > Subcategory > Line item via name) ----------
+
+model Category {
+  id            String        @id @default(cuid())
+  name          String        @unique // Income | Needs | Wants | Misc | Transfer | Investment
+  kind          String // income | expense | transfer | investment
+  sortOrder     Int           @default(0)
+  subcategories Subcategory[]
+}
+
+model Subcategory {
+  id           String         @id @default(cuid())
+  name         String
+  group        String? // optional mid-tier grouping e.g. "Survival", "Transport", "Eating Out"
+  categoryId   String
+  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sortOrder    Int            @default(0)
+  transactions Transaction[]
+  rules        CategoryRule[]
+  budgetLines  BudgetLine[]
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+}
+
+// ---------- Transactions ----------
+
+model Transaction {
+  id             String       @id @default(cuid())
+  date           DateTime
+  description    String // cleaned/display description
+  rawDescription String // original from bank CSV
+  amount         Float // signed: negative = money out, positive = money in
+  direction      String // debit | credit
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  subcategoryId  String?
+  subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+  source         String       @default("import") // import | manual
+  importBatchId  String?
+  importBatch    ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  hash           String       @unique // dedupe: account|date|amount|rawDescription
+  notes          String?
+  needsReview    Boolean      @default(false) // true when auto-categoriser was unsure
+  createdAt      DateTime     @default(now())
+
+  @@index([date])
+  @@index([accountId])
+  @@index([subcategoryId])
+}
+
+// ---------- Categorisation rules (learned from manual recategorisation) ----------
+
+model CategoryRule {
+  id            String      @id @default(cuid())
+  pattern       String // text to match against rawDescription/description
+  matchType     String      @default("contains") // contains | equals | regex | startsWith
+  subcategoryId String
+  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  priority      Int         @default(100) // lower = checked first
+  source        String      @default("user") // user | seed | ai
+  createdAt     DateTime    @default(now())
+
+  @@index([priority])
+}
+
+// ---------- Budgets ----------
+
+model BudgetLine {
+  id              String      @id @default(cuid())
+  subcategoryId   String
+  subcategory     Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  periodType      String      @default("monthly") // monthly | annual
+  projectedAmount Float
+  effectiveFrom   DateTime    @default(now())
+
+  @@index([subcategoryId])
+}
+
+// ---------- Net worth ----------
+
+model NetWorthSnapshot {
+  id      String          @id @default(cuid())
+  date    DateTime        @unique
+  note    String?
+  entries NetWorthEntry[]
+}
+
+model NetWorthEntry {
+  id         String           @id @default(cuid())
+  snapshotId String
+  snapshot   NetWorthSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  bucket     String // Emergency Fund | Savings | US Equities | AUS Equities | Global Equities | Crypto | Super
+  amount     Float
+
+  @@unique([snapshotId, bucket])
+}
+
+// ---------- Goals ----------
+
+model Goal {
+  id            String    @id @default(cuid())
+  name          String
+  term          String    @default("short") // short | long
+  targetAmount  Float?
+  currentAmount Float     @default(0)
+  targetDate    DateTime?
+  linkedBucket  String? // net-worth bucket to auto-read currentAmount from
+  notes         String?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+}
+
+// ---------- Imports ----------
+
+model ImportBatch {
+  id           String        @id @default(cuid())
+  filename     String
+  accountId    String
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  importedAt   DateTime      @default(now())
+  rowCount     Int           @default(0)
+  addedCount   Int           @default(0)
+  skippedCount Int           @default(0)
+  transactions Transaction[]
+}
+
+// ---------- Insights / alerts ----------
+
+model Insight {
+  id          String   @id @default(cuid())
+  generatedAt DateTime @default(now())
+  period      String // e.g. "2026-05" or "rolling"
+  type        String // overspend | spike | subscription | savings_rate | goal_pace | yoy | large_txn | narrative
+  severity    String   @default("info") // info | warn | alert
+  title       String
+  body        String
+  payload     String? // JSON blob of supporting data
+  dismissed   Boolean  @default(false)
+
+  @@index([period])
+}
+
+// ---------- Future LifeOS modules (reserved, not built in v1) ----------
+
+model HealthMetric {
+  id     String   @id @default(cuid())
+  date   DateTime
+  metric String
+  value  Float
+  unit   String?
+
+  @@index([date])
+}
+
+model Task {
+  id        String    @id @default(cuid())
+  title     String
+  done      Boolean   @default(false)
+  dueDate   DateTime?
+  priority  String    @default("normal")
+  createdAt DateTime  @default(now())
+}
+
+model Habit {
+  id        String   @id @default(cuid())
+  name      String
+  cadence   String   @default("daily")
+  createdAt DateTime @default(now())
+}
