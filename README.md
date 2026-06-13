@@ -52,6 +52,28 @@ narrative and auto-classification of unfamiliar merchants. `.env*` files are git
 5. **Insights → Generate** — recomputes alerts (overspend, spikes, subscription creep, savings-rate,
    YoY, large transactions) and an AI narrative.
 
+## Staying up to date
+Code is shared through GitHub; **your data never is**. Your `dev.db` lives only on your machine and
+is gitignored, so pulling updates can't touch, overwrite, or sync your finances — everyone keeps
+their own database.
+
+To pull the latest changes:
+```bash
+git pull                    # gets the new code
+npm install                 # only needed if dependencies changed
+npx prisma migrate dev      # only needed if the database schema changed (safe — see below)
+npm run dev
+```
+
+`git pull` only updates code, so your transactions, goals, and net worth stay exactly as they were.
+The one case that needs the extra `npx prisma migrate dev` step is when an update adds or changes a
+database table or column. That command applies any new migrations to your existing database **by
+adding to it, not wiping it** — your rows are preserved. It's always safe to run; if there's nothing
+new to apply, it does nothing.
+
+> ⚠️ **Never run `npm run seed` or `npm run db:reset` once you have real data.** Both erase your
+> database and reload the demo data. They're only for first-time setup on an empty database.
+
 ## Data model
 See `prisma/schema.prisma`. `prisma/seed.ts` loads neutral **example** data (made-up net worth,
 goals, and budget) so the app looks alive on first run — replace it with your own or start empty.
