@@ -23,11 +23,13 @@ export function ImportDialog({
   tree,
   onClose,
   onDone,
+  onAccountCreated,
 }: {
   accounts: Account[];
   tree: CategoryTree;
   onClose: () => void;
   onDone: () => void;
+  onAccountCreated: (a: Account) => void;
 }) {
   const [filename, setFilename] = useState("");
   const [detected, setDetected] = useState<{ id: string; label: string; confidence: number } | null>(null);
@@ -36,6 +38,11 @@ export function ImportDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ added: number; skipped: number } | null>(null);
+
+  // Inline "add account" form, for when the target account doesn't exist yet.
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("transaction");
 
   // Portal to <body> so the fixed overlay isn't trapped by an ancestor's
   // transform (the page-transition wrapper) and covers the whole viewport.
@@ -89,6 +96,28 @@ export function ImportDialog({
     setBusy(false);
     if (data.error) return setError(data.error);
     setResult({ added: data.added, skipped: data.skipped });
+  }
+
+  async function createAccount() {
+    const name = newName.trim();
+    if (!name) {
+      setError("Account name is required.");
+      return;
+    }
+    setError("");
+    setBusy(true);
+    const res = await fetch("/api/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, type: newType, institution: detected?.label ?? "Manual" }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (data.error) return setError(data.error);
+    onAccountCreated(data.account);
+    setAccountId(data.account.id);
+    setAdding(false);
+    setNewName("");
   }
 
   const reviewCount = rows.filter((r) => r.needsReview).length;
@@ -161,19 +190,72 @@ export function ImportDialog({
                   <span className="text-sm" style={{ color: "var(--color-muted)" }}>
                     Account:
                   </span>
-                  <select
-                    value={accountId}
-                    onChange={(e) => setAccountId(e.target.value)}
-                    className="rounded-lg px-3 py-1.5 text-sm"
-                    style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
-                  >
-                    <option value="">Choose…</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
+                  {adding ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        autoFocus
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && createAccount()}
+                        placeholder="Account name"
+                        className="rounded-lg px-3 py-1.5 text-sm"
+                        style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
+                      />
+                      <select
+                        value={newType}
+                        onChange={(e) => setNewType(e.target.value)}
+                        className="rounded-lg px-3 py-1.5 text-sm"
+                        style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
+                      >
+                        <option value="transaction">Transaction</option>
+                        <option value="savings">Savings</option>
+                        <option value="brokerage">Brokerage</option>
+                        <option value="super">Super</option>
+                        <option value="crypto">Crypto</option>
+                      </select>
+                      <button
+                        onClick={createAccount}
+                        disabled={busy || !newName.trim()}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                        style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setAdding(false)}
+                        className="text-sm"
+                        style={{ color: "var(--color-muted)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        value={accountId}
+                        onChange={(e) => setAccountId(e.target.value)}
+                        className="rounded-lg px-3 py-1.5 text-sm"
+                        style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
+                      >
+                        <option value="">Choose…</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          setNewName(detected?.label ?? "");
+                          setAdding(true);
+                        }}
+                        className="rounded-lg px-3 py-1.5 text-sm"
+                        style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
+                      >
+                        + New
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -233,6 +315,11 @@ export function ImportDialog({
 
         {rows.length > 0 && !result && (
           <div className="flex items-center justify-end gap-3 p-5 border-t">
+            {!accountId && (
+              <span className="text-sm mr-auto" style={{ color: "var(--color-muted)" }}>
+                Choose an account above to import.
+              </span>
+            )}
             <button onClick={onClose} className="text-sm" style={{ color: "var(--color-muted)" }}>
               Cancel
             </button>

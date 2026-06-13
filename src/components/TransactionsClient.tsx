@@ -29,17 +29,18 @@ export type CategoryTree = {
   subs: { id: string; name: string; group: string | null }[];
 }[];
 
-type Account = { id: string; name: string };
+type Account = { id: string; name: string; institution?: string };
 
 export function TransactionsClient({
   tree,
-  accounts,
+  accounts: initialAccounts,
   months,
 }: {
   tree: CategoryTree;
   accounts: Account[];
   months: string[];
 }) {
+  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
   const [rows, setRows] = useState<Row[]>([]);
   const [total, setTotal] = useState(0);
   const [sum, setSum] = useState(0);
@@ -341,6 +342,7 @@ export function TransactionsClient({
         <ImportDialog
           accounts={accounts}
           tree={tree}
+          onAccountCreated={(a) => setAccounts((prev) => [...prev, a].sort((x, y) => x.name.localeCompare(y.name)))}
           onClose={() => setImportOpen(false)}
           onDone={() => {
             setImportOpen(false);
