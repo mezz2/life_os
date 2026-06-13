@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus, X } from "lucide-react";
+import { Trash2, Plus, X, SlidersHorizontal } from "lucide-react";
 import { Card } from "@/components/ui";
 import { Portal } from "@/components/Portal";
 import { Sparkline } from "@/components/Sparkline";
+import { CategoryManager } from "@/components/CategoryManager";
 import { CategorySelect, type CategoryTree } from "@/components/TransactionsClient";
 import { aud, fmtDate, pct } from "@/lib/format";
 import type { BudgetTxn } from "@/lib/queries";
@@ -41,6 +42,7 @@ export function BudgetEditor({
   const [txnTarget, setTxnTarget] = useState<SubTarget>(null);
   const [adding, setAdding] = useState<AddTarget>(null);
   const [settingUp, setSettingUp] = useState(false);
+  const [managing, setManaging] = useState(false);
 
   async function setupTaxonomy() {
     setSettingUp(true);
@@ -80,24 +82,43 @@ export function BudgetEditor({
         <div className="py-10 text-center">
           <div className="font-semibold mb-1">No categories yet</div>
           <div className="text-sm mb-5" style={{ color: "var(--color-muted)" }}>
-            Set up the standard categories (Income, Needs, Wants, Investment…) to start
-            planning budgets and auto-categorising imports.
+            Start with the standard categories (Income, Needs, Wants, Investment…) and tweak
+            them, or build your own from scratch.
           </div>
-          <button
-            onClick={setupTaxonomy}
-            disabled={settingUp}
-            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
-            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
-          >
-            <Plus size={15} /> {settingUp ? "Setting up…" : "Set up standard categories"}
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={setupTaxonomy}
+              disabled={settingUp}
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+            >
+              <Plus size={15} /> {settingUp ? "Setting up…" : "Set up standard categories"}
+            </button>
+            <button
+              onClick={() => setManaging(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium"
+              style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+            >
+              <SlidersHorizontal size={15} /> Build my own
+            </button>
+          </div>
         </div>
+        {managing && <CategoryManager tree={tree} onClose={() => setManaging(false)} />}
       </Card>
     );
   }
 
   return (
     <div className="space-y-6 stagger">
+      <div className="flex justify-end -mb-2">
+        <button
+          onClick={() => setManaging(true)}
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+          style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
+        >
+          <SlidersHorizontal size={14} /> Manage categories
+        </button>
+      </div>
       {categories.map((c) => {
         const active = c.subs.filter((s) => s.projected || s.actual);
         const unbudgeted = c.subs.filter((s) => !s.projected);
@@ -218,6 +239,8 @@ export function BudgetEditor({
           }}
         />
       )}
+
+      {managing && <CategoryManager tree={tree} onClose={() => setManaging(false)} />}
     </div>
   );
 }
