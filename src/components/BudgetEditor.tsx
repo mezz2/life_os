@@ -40,6 +40,14 @@ export function BudgetEditor({
   const [budgetTarget, setBudgetTarget] = useState<SubTarget>(null);
   const [txnTarget, setTxnTarget] = useState<SubTarget>(null);
   const [adding, setAdding] = useState<AddTarget>(null);
+  const [settingUp, setSettingUp] = useState(false);
+
+  async function setupTaxonomy() {
+    setSettingUp(true);
+    await fetch("/api/taxonomy", { method: "POST" });
+    router.refresh();
+    setSettingUp(false);
+  }
 
   async function putBudget(subcategoryId: string, projectedAmount: number) {
     await fetch("/api/budget", {
@@ -64,6 +72,28 @@ export function BudgetEditor({
       body: JSON.stringify({ ids: [id], subcategoryId }),
     });
     router.refresh();
+  }
+
+  if (categories.length === 0) {
+    return (
+      <Card>
+        <div className="py-10 text-center">
+          <div className="font-semibold mb-1">No categories yet</div>
+          <div className="text-sm mb-5" style={{ color: "var(--color-muted)" }}>
+            Set up the standard categories (Income, Needs, Wants, Investment…) to start
+            planning budgets and auto-categorising imports.
+          </div>
+          <button
+            onClick={setupTaxonomy}
+            disabled={settingUp}
+            className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+            style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+          >
+            <Plus size={15} /> {settingUp ? "Setting up…" : "Set up standard categories"}
+          </button>
+        </div>
+      </Card>
+    );
   }
 
   return (

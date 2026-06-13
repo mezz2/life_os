@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { TAXONOMY, RULES } from "../src/lib/taxonomy";
 
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL ?? "file:./dev.db",
@@ -13,80 +14,8 @@ const db = new PrismaClient({ adapter });
 // with your own, or run with an empty DB and add everything through the UI.
 // ---------------------------------------------------------------------------
 
-// ---------- Taxonomy ----------
-// Category -> kind, then subcategories with an optional mid-tier group.
-
-type Sub = { name: string; group?: string };
-const TAXONOMY: { category: string; kind: string; subs: Sub[] }[] = [
-  {
-    category: "Income",
-    kind: "income",
-    subs: [
-      { name: "Salary" },
-      { name: "Side Income" },
-      { name: "Interest" },
-      { name: "Tax Refund" },
-    ],
-  },
-  {
-    category: "Needs",
-    kind: "expense",
-    subs: [
-      { name: "Rent / Board", group: "Survival" },
-      { name: "Groceries", group: "Survival" },
-      { name: "Personal Supplies", group: "Survival" },
-      { name: "Pet Insurance", group: "Pet" },
-      { name: "Pet Food", group: "Pet" },
-      { name: "Pet Medical", group: "Pet" },
-      { name: "Petrol", group: "Transport" },
-      { name: "Public Transport", group: "Transport" },
-      { name: "Vehicle Registration", group: "Transport" },
-      { name: "Vehicle Insurance", group: "Transport" },
-      { name: "Vehicle Maintenance", group: "Transport" },
-      { name: "Tolls and Parking", group: "Transport" },
-      { name: "Gym", group: "Health" },
-      { name: "Medical", group: "Health" },
-      { name: "Haircut", group: "Health" },
-    ],
-  },
-  {
-    category: "Wants",
-    kind: "expense",
-    subs: [
-      { name: "Streaming", group: "Subscriptions" },
-      { name: "Cloud Storage", group: "Subscriptions" },
-      { name: "Software", group: "Subscriptions" },
-      { name: "Sport / Hobby", group: "Lifestyle" },
-      { name: "Events & Activities", group: "Lifestyle" },
-      { name: "Eating Out", group: "Eating Out" },
-      { name: "Takeaway & Delivery", group: "Eating Out" },
-      { name: "Going Out", group: "Going Out" },
-      { name: "Dates", group: "Dates" },
-      { name: "Flights", group: "Travel" },
-      { name: "Accommodation", group: "Travel" },
-      { name: "Travel Food", group: "Travel" },
-      { name: "Gifts", group: "Shopping" },
-      { name: "Personal", group: "Shopping" },
-    ],
-  },
-  {
-    category: "Investment",
-    kind: "investment",
-    subs: [
-      { name: "Stocks" },
-      { name: "Super Contribution" },
-      { name: "Crypto" },
-      { name: "Emergency Fund" },
-      { name: "House Fund" },
-    ],
-  },
-  {
-    category: "Transfer",
-    kind: "transfer",
-    subs: [{ name: "Internal Transfer" }, { name: "Savings" }],
-  },
-  { category: "Misc", kind: "expense", subs: [{ name: "Uncategorised" }] },
-];
+// Taxonomy + starter rules live in src/lib/taxonomy.ts (shared with the
+// POST /api/taxonomy route so a blank DB can install them from the UI).
 
 // ---------- Net worth snapshots (example data) ----------
 const BUCKETS = [
@@ -167,57 +96,6 @@ const BUDGET: { sub: string; monthly: number }[] = [
   { sub: "Vehicle Insurance", monthly: 130 },
   { sub: "Vehicle Registration", monthly: 50 },
   { sub: "Medical", monthly: 140 },
-];
-
-// ---------- Starter categorisation rules (common AU merchants) ----------
-const RULES: { pattern: string; sub: string; priority?: number }[] = [
-  { pattern: "woolworths", sub: "Groceries" },
-  { pattern: "coles", sub: "Groceries" },
-  { pattern: "aldi", sub: "Groceries" },
-  { pattern: "iga", sub: "Groceries" },
-  { pattern: "costco", sub: "Groceries" },
-  { pattern: "bp ", sub: "Petrol" },
-  { pattern: "shell", sub: "Petrol" },
-  { pattern: "ampol", sub: "Petrol" },
-  { pattern: "caltex", sub: "Petrol" },
-  { pattern: "7-eleven", sub: "Petrol" },
-  { pattern: "united petroleum", sub: "Petrol" },
-  { pattern: "opal", sub: "Public Transport" },
-  { pattern: "transport for nsw", sub: "Public Transport" },
-  { pattern: "transportfornsw", sub: "Public Transport" },
-  { pattern: "linkt", sub: "Tolls and Parking" },
-  { pattern: "e-toll", sub: "Tolls and Parking" },
-  { pattern: "parking", sub: "Tolls and Parking" },
-  { pattern: "mcdonald", sub: "Takeaway & Delivery" },
-  { pattern: "kfc", sub: "Takeaway & Delivery" },
-  { pattern: "hungry jack", sub: "Takeaway & Delivery" },
-  { pattern: "guzman", sub: "Takeaway & Delivery" },
-  { pattern: "domino", sub: "Takeaway & Delivery" },
-  { pattern: "uber eats", sub: "Takeaway & Delivery", priority: 50 },
-  { pattern: "ubereats", sub: "Takeaway & Delivery", priority: 50 },
-  { pattern: "doordash", sub: "Takeaway & Delivery" },
-  { pattern: "menulog", sub: "Takeaway & Delivery" },
-  { pattern: "anytime fitness", sub: "Gym" },
-  { pattern: "fitness first", sub: "Gym" },
-  { pattern: "apple.com/bill", sub: "Cloud Storage" },
-  { pattern: "icloud", sub: "Cloud Storage" },
-  { pattern: "netflix", sub: "Streaming" },
-  { pattern: "spotify", sub: "Streaming" },
-  { pattern: "xbox", sub: "Streaming" },
-  { pattern: "chemist warehouse", sub: "Personal Supplies" },
-  { pattern: "priceline", sub: "Personal Supplies" },
-  { pattern: "pharmacy", sub: "Medical" },
-  { pattern: "anthropic", sub: "Software" },
-  { pattern: "openai", sub: "Software" },
-  { pattern: "google one", sub: "Software" },
-  // Transfers & income (priority 40 so they win over merchant guesses)
-  { pattern: "transfer to xx", sub: "Internal Transfer", priority: 40 },
-  { pattern: "transfer from xx", sub: "Internal Transfer", priority: 40 },
-  { pattern: "internal transfer", sub: "Internal Transfer", priority: 40 },
-  { pattern: "payment received", sub: "Internal Transfer", priority: 40 },
-  { pattern: "directcredit", sub: "Internal Transfer", priority: 60 },
-  { pattern: "salary", sub: "Salary", priority: 40 },
-  { pattern: "klook", sub: "Events & Activities", priority: 60 },
 ];
 
 async function main() {
