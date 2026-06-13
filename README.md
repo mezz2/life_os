@@ -89,3 +89,13 @@ add an adapter in `src/lib/banks/` for any other bank.
 - Mobile-responsive; to use on your phone, run `npm run dev` and open the Network URL on the same
   Wi-Fi (or front it with a private tunnel).
 - `dev.db`, `.env*` and `/data/uploads/` are gitignored.
+
+## Troubleshooting
+- **`npm audit` shows vulnerabilities** — normal transitive-dependency noise; safe to ignore for a
+  local app. **Do not run `npm audit fix --force`** — it will downgrade core packages and break the
+  app.
+- **`Cannot find module 'dotenv'` / Prisma runs an old version (6.x)** — your install skipped some
+  packages (often because `NODE_ENV=production` is set). Reinstall everything with
+  `npm install --include=dev`, then retry.
+- **`prisma migrate dev` says `Argument "url" is missing`** — you're on an old Prisma. This project
+  needs Prisma 7; run `npm install` then `npm run migrate` (which uses the project's own copy).
