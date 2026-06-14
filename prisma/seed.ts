@@ -42,6 +42,14 @@ function parseDMY(s: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+// UTC midnight `n` days before today — used to backdate example habit logs.
+function dayAgo(n: number): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - n);
+  return d;
+}
+
 // ---------- Goals (example data) ----------
 const GOALS: {
   name: string;
@@ -106,6 +114,8 @@ async function main() {
   await db.netWorthSnapshot.deleteMany();
   await db.budgetLine.deleteMany();
   await db.categoryRule.deleteMany();
+  await db.habitLog.deleteMany();
+  await db.habit.deleteMany();
   await db.goal.deleteMany();
   await db.subcategory.deleteMany();
   await db.category.deleteMany();
@@ -202,6 +212,68 @@ async function main() {
     });
   }
   console.log(`  ✓ rules: ${RULES.length}`);
+
+  // ---------- Habits (example data) ----------
+  // "Read" — daily, a long live streak; today is left unlogged so you can tap it.
+  const read = await db.habit.create({
+    data: {
+      createdAt: dayAgo(45),
+      name: "Read 10 pages",
+      identityStatement: "I am a reader",
+      type: "build",
+      cadence: "daily",
+      twoMinVersion: "Read one page",
+      sortOrder: 1,
+    },
+  });
+  await db.habitLog.createMany({
+    data: Array.from({ length: 23 }, (_, k) => ({ habitId: read.id, date: dayAgo(k + 1), status: "done" })),
+  });
+
+  // "Journal" — daily, but the last two days were missed → "never miss twice".
+  const journal = await db.habit.create({
+    data: { createdAt: dayAgo(45), name: "Journal", identityStatement: "I reflect daily", type: "build", cadence: "daily", sortOrder: 2 },
+  });
+  await db.habitLog.createMany({
+    data: Array.from({ length: 20 }, (_, k) => ({ habitId: journal.id, date: dayAgo(k + 3), status: "done" })),
+  });
+
+  // "Meditate" — weekdays only (Mon–Fri).
+  const meditate = await db.habit.create({
+    data: {
+      createdAt: dayAgo(45),
+      name: "Meditate",
+      identityStatement: "I am calm and focused",
+      type: "build",
+      cadence: "weekdays",
+      weekdays: "1,2,3,4,5",
+      twoMinVersion: "Three deep breaths",
+      sortOrder: 3,
+    },
+  });
+  await db.habitLog.createMany({
+    data: Array.from({ length: 30 }, (_, k) => dayAgo(k + 1))
+      .filter((d) => d.getUTCDay() >= 1 && d.getUTCDay() <= 5)
+      .map((date) => ({ habitId: meditate.id, date, status: "done" })),
+  });
+
+  // "Gym" — 3× per week.
+  const gym = await db.habit.create({
+    data: { createdAt: dayAgo(45), name: "Gym", identityStatement: "I am an athlete", type: "build", cadence: "weekly_count", targetCount: 3, sortOrder: 4 },
+  });
+  await db.habitLog.createMany({
+    data: [1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26].map((k) => ({ habitId: gym.id, date: dayAgo(k), status: "done" })),
+  });
+
+  // "No late-night snacking" — a break habit.
+  const snack = await db.habit.create({
+    data: { createdAt: dayAgo(45), name: "No late-night snacking", identityStatement: "I fuel my body well", type: "break", cadence: "daily", sortOrder: 5 },
+  });
+  await db.habitLog.createMany({
+    data: Array.from({ length: 9 }, (_, k) => ({ habitId: snack.id, date: dayAgo(k + 1), status: "done" })),
+  });
+
+  console.log("  ✓ habits: 5 with example logs");
 
   console.log("Done.");
 }

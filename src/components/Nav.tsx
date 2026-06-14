@@ -22,12 +22,12 @@ const primary = [
   { href: "/net-worth", label: "Net Worth", icon: TrendingUp },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/project-buy", label: "Project BUY", icon: KeyRound },
+  { href: "/habits", label: "Habits", icon: Repeat },
 ];
 
 const future = [
   { label: "Health", icon: HeartPulse },
   { label: "Tasks", icon: CheckSquare },
-  { label: "Habits", icon: Repeat },
 ];
 
 export function Nav() {

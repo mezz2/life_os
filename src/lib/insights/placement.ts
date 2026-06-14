@@ -2,7 +2,7 @@
 // severity), so the routing can evolve without a DB migration. One home per
 // insight — an insight shows on exactly one page/slot, never duplicated.
 
-export type InsightPage = "budget" | "goals" | "net-worth";
+export type InsightPage = "budget" | "goals" | "net-worth" | "habits";
 export type Placement = { page: InsightPage; slot: string };
 
 // A minimal shape — works for both Prisma rows and InsightDTOs.

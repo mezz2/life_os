@@ -187,9 +187,37 @@ model Task {
   createdAt DateTime  @default(now())
 }
 
+// ---------- Habits (Atomic Habits engine — Phase 1) ----------
+
 model Habit {
+  id                String     @id @default(cuid())
+  name              String
+  identityStatement String? // the "this votes for…" line
+  type              String     @default("build") // build | break
+  cadence           String     @default("daily") // daily | weekly_count | weekdays
+  targetCount       Int? // for weekly_count: times per week
+  weekdays          String? // for weekdays cadence: CSV of 0-6 (Sun..Sat)
+  cue               String? // the 4 laws (optional)
+  craving           String?
+  response          String?
+  reward            String?
+  twoMinVersion     String? // the "two-minute rule" starter version
+  archived          Boolean    @default(false)
+  sortOrder         Int        @default(0)
+  createdAt         DateTime   @default(now())
+  logs              HabitLog[]
+}
+
+model HabitLog {
   id        String   @id @default(cuid())
-  name      String
-  cadence   String   @default("daily")
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime // normalised to UTC midnight
+  status    String   @default("done") // done | partial | skipped
+  value     Float? // optional quantified amount (e.g. minutes, reps)
+  notes     String?
   createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
+  @@index([habitId])
 }
