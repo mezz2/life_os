@@ -40,7 +40,7 @@ function weekdayOf(key: string): number {
 }
 
 // Monday-anchored week start, so weekly_count cadences roll on Mondays.
-function startOfWeekKey(key: string): string {
+export function startOfWeekKey(key: string): string {
   const offset = (weekdayOf(key) + 6) % 7; // days since Monday
   return addDaysKey(key, -offset);
 }

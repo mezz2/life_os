@@ -14,12 +14,16 @@ export type GoalDTO = {
   id: string;
   name: string;
   term: string;
+  kind: string; // financial | habit | outcome
   targetAmount: number | null;
   currentAmount: number;
   targetDate: string | null; // YYYY-MM-DD
   linkedBuckets: string[];
   notes: string | null;
+  valueId: string | null;
 };
+
+export type ValueRef = { id: string; name: string };
 
 function weeksBetween(a: Date, b: Date): number {
   return Math.max(0, (b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24 * 7));
@@ -39,7 +43,7 @@ function useBuyDerived(): { target: number; subtitle: string } | null {
   return { target: projectBuy(input).perPersonUpfront, subtitle: buySummary(input) };
 }
 
-export function GoalsClient({ goals, buckets }: { goals: GoalDTO[]; buckets: string[] }) {
+export function GoalsClient({ goals, buckets, values }: { goals: GoalDTO[]; buckets: string[]; values: ValueRef[] }) {
   const [editing, setEditing] = useState<GoalDTO | null>(null);
   const [adding, setAdding] = useState(false);
   const buy = useBuyDerived();
@@ -85,8 +89,8 @@ export function GoalsClient({ goals, buckets }: { goals: GoalDTO[]; buckets: str
         </div>
       )}
 
-      {editing && <GoalModal goal={editing} buckets={buckets} onClose={() => setEditing(null)} />}
-      {adding && <GoalModal goal={null} buckets={buckets} onClose={() => setAdding(false)} />}
+      {editing && <GoalModal goal={editing} buckets={buckets} values={values} onClose={() => setEditing(null)} />}
+      {adding && <GoalModal goal={null} buckets={buckets} values={values} onClose={() => setAdding(false)} />}
     </div>
   );
 }
@@ -200,12 +204,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function GoalModal({ goal, buckets, onClose }: { goal: GoalDTO | null; buckets: string[]; onClose: () => void }) {
+function GoalModal({ goal, buckets, values, onClose }: { goal: GoalDTO | null; buckets: string[]; values: ValueRef[]; onClose: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({
     name: goal?.name ?? "",
     term: goal?.term ?? "short",
+    kind: goal?.kind ?? "financial",
+    valueId: goal?.valueId ?? "",
     targetAmount: goal?.targetAmount != null ? String(goal.targetAmount) : "",
     currentAmount: goal != null ? String(goal.currentAmount) : "",
     targetDate: goal?.targetDate ?? "",
@@ -224,6 +230,8 @@ function GoalModal({ goal, buckets, onClose }: { goal: GoalDTO | null; buckets: 
       ...(goal ? { id: goal.id } : {}),
       name: f.name,
       term: f.term,
+      kind: f.kind,
+      valueId: f.valueId || null,
       // House goal's target & description come from Project BUY — keep the
       // stored values untouched rather than writing the disabled placeholders.
       targetAmount: isHouse ? goal!.targetAmount : f.targetAmount === "" ? null : Number(f.targetAmount),
@@ -294,6 +302,23 @@ function GoalModal({ goal, buckets, onClose }: { goal: GoalDTO | null; buckets: 
               style={inputStyle}
             />
           </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Kind">
+              <select value={f.kind} onChange={(e) => set("kind", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                <option value="financial">Financial</option>
+                <option value="habit">Habit-driven</option>
+                <option value="outcome">Outcome</option>
+              </select>
+            </Field>
+            <Field label="Value it serves">
+              <select value={f.valueId} onChange={(e) => set("valueId", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                <option value="">— none —</option>
+                {values.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Term">
               <select value={f.term} onChange={(e) => set("term", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>

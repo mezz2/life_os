@@ -39,6 +39,8 @@ model Subcategory {
   group        String? // optional mid-tier grouping e.g. "Survival", "Transport", "Eating Out"
   categoryId   String
   category     Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  valueId      String? // which life Value this spending serves (Phase 11 alignment)
+  value        Value?         @relation(fields: [valueId], references: [id], onDelete: SetNull)
   sortOrder    Int            @default(0)
   transactions Transaction[]
   rules        CategoryRule[]
@@ -46,6 +48,7 @@ model Subcategory {
 
   @@unique([categoryId, name])
   @@index([categoryId])
+  @@index([valueId])
 }
 
 // ---------- Transactions ----------
@@ -121,12 +124,29 @@ model NetWorthEntry {
   @@unique([snapshotId, bucket])
 }
 
+// ---------- Values (top of the Atomic Habits hierarchy — Phase 2) ----------
+
+model Value {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "Health", "Financial discipline", "Craft"
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  goals       Goal[]
+  habits      Habit[]
+  events      CalendarEvent[]
+  seasons     Season[]
+  references  Reference[]
+  subcategories Subcategory[]
+}
+
 // ---------- Goals ----------
 
 model Goal {
   id            String    @id @default(cuid())
   name          String
   term          String    @default("short") // short | long
+  kind          String    @default("financial") // financial | habit | outcome
   targetAmount  Float?
   currentAmount Float     @default(0)
   targetDate    DateTime?
@@ -134,6 +154,13 @@ model Goal {
   notes         String?
   sortOrder     Int       @default(0)
   createdAt     DateTime  @default(now())
+  valueId       String? // the value this goal serves
+  value         Value?    @relation(fields: [valueId], references: [id], onDelete: SetNull)
+  habits        Habit[] // leading-indicator habits for this goal
+  events        CalendarEvent[]
+  references    Reference[]
+
+  @@index([valueId])
 }
 
 // ---------- Imports ----------
@@ -178,6 +205,78 @@ model HealthMetric {
   @@index([date])
 }
 
+// ---------- Daily check-in (energy layer — Phase 3) ----------
+
+model DailyCheckin {
+  id         String   @id @default(cuid())
+  date       DateTime @unique // UTC midnight, one row per day
+  energy     Int // 1-5
+  mood       Int // 1-5
+  sleepHours Float?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+}
+
+// ---------- Calendar cache (time-allocation lens — Phase 4) ----------
+// Local-first mirror of Google Calendar. Synced via /api/calendar/sync (events
+// pushed in from the GCal MCP or a script); the app always reads this cache.
+
+model CalendarEvent {
+  id         String   @id @default(cuid())
+  externalId String?  @unique // GCal event id; null for manually-added events
+  calendarId String?
+  title      String
+  start      DateTime
+  end        DateTime
+  allDay     Boolean  @default(false)
+  rigidity   String   @default("fixed") // fixed | flexible | elastic | fluid (used by Phase 5)
+  valueId    String?
+  value      Value?   @relation(fields: [valueId], references: [id], onDelete: SetNull)
+  goalId     String?
+  goal       Goal?    @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  raw        String? // original GCal JSON payload
+  syncedAt   DateTime @default(now())
+  shuffleBatch String? // set when created by an applied shuffle proposal (for undo)
+
+  @@index([start])
+  @@index([valueId])
+  @@index([shuffleBatch])
+}
+
+// ---------- Weekly review (Phase 6) ----------
+
+model WeeklyReview {
+  id        String   @id @default(cuid())
+  weekStart DateTime @unique // Monday UTC
+  title     String
+  body      String // digest lines joined by \n
+  createdAt DateTime @default(now())
+}
+
+// ---------- Shuffle engine (Phase 5) ----------
+// A reusable, flexible time block the solver reflows around fixed commitments.
+
+model TimeBlock {
+  id          String   @id @default(cuid())
+  title       String
+  rigidity    String   @default("flexible") // flexible | elastic | fluid
+  durationMin Int
+  minChunkMin Int      @default(30) // elastic: smallest contiguous piece
+  energy      String   @default("any") // high | low | any
+  days        String? // CSV weekdays 0-6 (null = any day)
+  startMin    Int      @default(360) // earliest time-of-day
+  endMin      Int      @default(1320) // latest time-of-day
+  theme       String?
+  priority    Int      @default(100)
+  habitId     String? // habit blocks are protected (placed first)
+  habit       Habit?   @relation(fields: [habitId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([habitId])
+}
+
 model Task {
   id        String    @id @default(cuid())
   title     String
@@ -185,6 +284,58 @@ model Task {
   dueDate   DateTime?
   priority  String    @default("normal")
   createdAt DateTime  @default(now())
+}
+
+// ---------- Seasons & week templates (Phase 9) ----------
+// A Season is a 6–12wk focus window. A WeekTemplate is a saved set of TimeBlock
+// specs that can be materialised into real TimeBlock rows ("apply default week").
+
+model Season {
+  id        String   @id @default(cuid())
+  name      String
+  start     DateTime
+  end       DateTime
+  theme     String?
+  goalIds   String? // CSV of Goal ids in focus this season
+  valueId   String?
+  value     Value?   @relation(fields: [valueId], references: [id], onDelete: SetNull)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([start])
+  @@index([valueId])
+}
+
+model WeekTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  blocks    String // JSON array of TimeBlock specs
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ---------- Knowledge garden (Phase 10) ----------
+// A local-first cache of references (articles, videos, papers) that can roll up
+// to a Value or Goal. Same pattern as CalendarEvent: the app reads this cache;
+// external MCP ingest (Drive/PubMed) can populate `raw` later, but manual adds
+// work standalone.
+
+model Reference {
+  id        String   @id @default(cuid())
+  title     String
+  source    String? // inferred host/provider, e.g. youtube | spotify | pubmed | web
+  url       String?
+  note      String?
+  valueId   String?
+  value     Value?   @relation(fields: [valueId], references: [id], onDelete: SetNull)
+  goalId    String?
+  goal      Goal?    @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  raw       String? // original MCP payload (JSON) when ingested
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([valueId])
+  @@index([goalId])
 }
 
 // ---------- Habits (Atomic Habits engine — Phase 1) ----------
@@ -202,10 +353,59 @@ model Habit {
   response          String?
   reward            String?
   twoMinVersion     String? // the "two-minute rule" starter version
+  rewardBundle      String? // temptation bundling: a link/URI paired with this habit (e.g. a playlist)
   archived          Boolean    @default(false)
   sortOrder         Int        @default(0)
   createdAt         DateTime   @default(now())
+  goalId            String? // leading indicator for this goal
+  goal              Goal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  valueId           String? // the identity/value this habit votes for
+  value             Value?     @relation(fields: [valueId], references: [id], onDelete: SetNull)
   logs              HabitLog[]
+  timeBlocks        TimeBlock[]
+  urges             UrgeLog[]
+  stackItems        HabitStackItem[]
+
+  @@index([goalId])
+  @@index([valueId])
+}
+
+// ---------- Habit stacking (Phase 8) ----------
+
+model HabitStack {
+  id        String           @id @default(cuid())
+  name      String
+  cue       String? // the anchor: "After I [cue]…"
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  items     HabitStackItem[]
+}
+
+model HabitStackItem {
+  id      String     @id @default(cuid())
+  stackId String
+  stack   HabitStack @relation(fields: [stackId], references: [id], onDelete: Cascade)
+  habitId String
+  habit   Habit      @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  order   Int        @default(0)
+
+  @@unique([stackId, habitId])
+  @@index([stackId])
+}
+
+// ---------- Break-habit urge log (Phase 7) ----------
+
+model UrgeLog {
+  id        String   @id @default(cuid())
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  timestamp DateTime @default(now())
+  gaveIn    Boolean  @default(false) // true = slipped; false = urge resisted
+  intensity Int? // 1-5
+  trigger   String?
+  note      String?
+
+  @@index([habitId])
 }
 
 model HabitLog {

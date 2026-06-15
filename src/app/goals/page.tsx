@@ -8,9 +8,10 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function GoalsPage() {
-  const [goals, buckets, slots] = await Promise.all([
+  const [goals, buckets, values, slots] = await Promise.all([
     db.goal.findMany({ orderBy: { sortOrder: "asc" } }),
     getNetWorthBuckets(),
+    db.value.findMany({ orderBy: { sortOrder: "asc" } }),
     getPageInsights("goals"),
   ]);
 
@@ -18,18 +19,20 @@ export default async function GoalsPage() {
     id: g.id,
     name: g.name,
     term: g.term,
+    kind: g.kind,
     targetAmount: g.targetAmount,
     currentAmount: g.currentAmount,
     targetDate: g.targetDate ? g.targetDate.toISOString().slice(0, 10) : null,
     linkedBuckets: g.linkedBucket ? g.linkedBucket.split(",").map((s) => s.trim()).filter(Boolean) : [],
     notes: g.notes,
+    valueId: g.valueId,
   }));
 
   return (
     <div>
       <PageHeader title="Goals" subtitle="Short-term targets and long-term ambitions — click a goal to edit" />
       <InsightSlot insights={slots.goals} className="mb-5" />
-      <GoalsClient goals={dto} buckets={buckets.map((b) => b.name)} />
+      <GoalsClient goals={dto} buckets={buckets.map((b) => b.name)} values={values.map((v) => ({ id: v.id, name: v.name }))} />
     </div>
   );
 }
