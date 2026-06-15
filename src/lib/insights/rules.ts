@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { monthKey, monthLabel, aud } from "@/lib/format";
 import { computeGoalInsights } from "./goalRules";
 import { computeNetWorthInsights } from "./netWorthRules";
+import { computeAlignmentInsights } from "./alignmentRules";
 
 export type InsightDraft = {
   period: string;
@@ -52,6 +53,7 @@ export async function computeInsights(): Promise<InsightDraft[]> {
   const externalDrafts = [
     ...(await computeGoalInsights()),
     ...(await computeNetWorthInsights()),
+    ...(await computeAlignmentInsights()),
   ];
 
   if (t.length === 0) return externalDrafts;
