@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, Badge } from "@/components/ui";
 import { Sparkline } from "@/components/Sparkline";
 import { InsightCard } from "@/components/InsightCard";
+import { TodayStrip } from "@/components/TodayStrip";
 import { db } from "@/lib/db";
 import { getNeedsAttention } from "@/lib/insights/store";
 import { insightHref } from "@/lib/insights/placement";
@@ -50,9 +51,11 @@ export default async function Dashboard() {
           {process.env.NEXT_PUBLIC_USER_NAME ? `, ${process.env.NEXT_PUBLIC_USER_NAME}` : ""}
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--color-muted)" }}>
-          Here&apos;s your financial picture for {monthLabel(month)}.
+          Your life at a glance — {monthLabel(month)}.
         </p>
       </div>
+
+      <TodayStrip />
 
       <div className="grid lg:grid-cols-3 gap-4 mb-4">
         {/* Net worth hero */}
