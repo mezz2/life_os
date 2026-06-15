@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Trash2, Check, Flame, AlertTriangle } from "lucide-react";
+import { Plus, X, Trash2, Check, Flame, AlertTriangle, Vote, Shield, ShieldX, Gift } from "lucide-react";
 import { Card, Badge, EmptyState } from "@/components/ui";
 import { Portal } from "@/components/Portal";
 import { pct } from "@/lib/format";
 import { addDaysKey } from "@/lib/habits";
 
 export type HabitLogDTO = { date: string; status: string };
+export type Ref = { id: string; name: string };
+export type VotesDTO = { total: number; byValue: { valueId: string; name: string; votes: number; habitCount: number }[] };
 
 export type HabitDTO = {
   id: string;
@@ -23,6 +25,9 @@ export type HabitDTO = {
   response: string | null;
   reward: string | null;
   twoMinVersion: string | null;
+  rewardBundle: string | null; // temptation-bundling link surfaced at check-off
+  goalId: string | null;
+  valueId: string | null;
   logs: HabitLogDTO[];
   scheduledToday: boolean;
   doneToday: boolean;
@@ -30,6 +35,10 @@ export type HabitDTO = {
   completionRate: number;
   missTwice: boolean;
   weekly: { done: number; target: number } | null;
+  breakClean: string; // formatted "time since last slip"
+  breakEverSlipped: boolean;
+  breakResistRate: number;
+  breakUrges: number;
 };
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -54,17 +63,25 @@ export function HabitsClient({
   habits,
   today,
   historyDays,
+  votes,
+  values,
+  goals,
 }: {
   habits: HabitDTO[];
   today: string;
   historyDays: number;
+  votes: VotesDTO;
+  values: Ref[];
+  goals: Ref[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<HabitDTO | null>(null);
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
-  const due = habits.filter((h) => h.scheduledToday);
+  const buildHabits = habits.filter((h) => h.type !== "break");
+  const breakHabits = habits.filter((h) => h.type === "break");
+  const due = buildHabits.filter((h) => h.scheduledToday);
   const doneCount = due.filter((h) => h.doneToday).length;
 
   async function toggle(h: HabitDTO) {
@@ -81,6 +98,7 @@ export function HabitsClient({
 
   return (
     <div>
+      {votes.total > 0 && <VotesBanner votes={votes} />}
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
           Today · {doneCount}/{due.length} done
@@ -116,19 +134,62 @@ export function HabitsClient({
       <div className="text-xs uppercase tracking-wide mb-3" style={{ color: "var(--color-muted)" }}>
         All habits
       </div>
-      {habits.length === 0 ? (
+      {buildHabits.length === 0 ? (
         <EmptyState title="No habits yet" />
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
-          {habits.map((h) => (
+          {buildHabits.map((h) => (
             <HabitCard key={h.id} h={h} today={today} historyDays={historyDays} onClick={() => setEditing(h)} />
           ))}
         </div>
       )}
 
-      {editing && <HabitModal habit={editing} onClose={() => setEditing(null)} />}
-      {adding && <HabitModal habit={null} onClose={() => setAdding(false)} />}
+      {breakHabits.length > 0 && (
+        <>
+          <div className="text-xs uppercase tracking-wide mb-3 mt-8" style={{ color: "var(--color-muted)" }}>
+            Breaking
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {breakHabits.map((h) => (
+              <BreakCard key={h.id} h={h} onEdit={() => setEditing(h)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {editing && <HabitModal habit={editing} values={values} goals={goals} onClose={() => setEditing(null)} />}
+      {adding && <HabitModal habit={null} values={values} goals={goals} onClose={() => setAdding(false)} />}
     </div>
+  );
+}
+
+// "Identity votes" this week — reframes completions as votes for who you're
+// becoming (Atomic Habits). Only shows once there's at least one vote.
+function VotesBanner({ votes }: { votes: VotesDTO }) {
+  return (
+    <Card className="mb-5">
+      <div className="flex items-center gap-2 mb-2">
+        <Vote size={16} style={{ color: "var(--color-accent)" }} />
+        <span className="text-sm font-medium">
+          <span className="num" style={{ color: "var(--color-accent)" }}>{votes.total}</span> vote
+          {votes.total === 1 ? "" : "s"} cast this week for who you&apos;re becoming
+        </span>
+      </div>
+      {votes.byValue.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {votes.byValue.map((v) => (
+            <span
+              key={v.valueId}
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
+              style={{ background: "var(--color-surface-2)" }}
+            >
+              {v.name}
+              <span className="num font-semibold" style={{ color: "var(--color-accent)" }}>{v.votes}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -179,6 +240,20 @@ function TodayRow({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {h.rewardBundle && (
+          <a
+            href={h.rewardBundle}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="Your paired reward — enjoy it while you do this"
+            className="grid h-7 w-7 place-items-center rounded-lg"
+            style={{ background: "var(--color-surface-2)", color: "var(--color-accent)" }}
+            aria-label="Open paired reward"
+          >
+            <Gift size={14} />
+          </a>
+        )}
         {h.weekly && (
           <span className="num text-xs" style={{ color: "var(--color-muted)" }}>
             {h.weekly.done}/{h.weekly.target}
@@ -196,6 +271,71 @@ function TodayRow({
         )}
       </div>
     </div>
+  );
+}
+
+// Break habits invert the build loop: a "time since last slip" counter plus
+// resist/slip logging instead of a daily check-off.
+function BreakCard({ h, onEdit }: { h: HabitDTO; onEdit: () => void }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function log(gaveIn: boolean) {
+    if (busy) return;
+    setBusy(true);
+    await fetch("/api/habits/urge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ habitId: h.id, gaveIn }),
+    });
+    setBusy(false);
+    router.refresh();
+  }
+
+  return (
+    <Card className="h-full">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <button onClick={onEdit} className="text-left min-w-0">
+          <div className="font-medium truncate">{h.name}</div>
+          {h.identityStatement && (
+            <div className="text-xs mt-0.5 truncate" style={{ color: "var(--color-muted)" }}>{h.identityStatement}</div>
+          )}
+        </button>
+        <Badge tone="warn">breaking</Badge>
+      </div>
+
+      <div className="flex items-end gap-2 mb-3">
+        <span className="num text-2xl font-semibold" style={{ color: "var(--color-accent)" }}>{h.breakClean}</span>
+        <span className="text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+          {h.breakEverSlipped ? "since last slip" : "clean since day one"}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => log(false)}
+          disabled={busy}
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          <Shield size={15} /> Resisted
+        </button>
+        <button
+          onClick={() => log(true)}
+          disabled={busy}
+          className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+          style={{ background: "var(--color-surface-2)", color: "var(--color-negative)" }}
+        >
+          <ShieldX size={15} /> Slipped
+        </button>
+      </div>
+
+      {h.breakUrges > 0 && (
+        <div className="text-xs mt-3" style={{ color: "var(--color-muted)" }}>
+          <span className="num font-medium" style={{ color: "var(--color-text)" }}>{pct(h.breakResistRate)}</span> of {h.breakUrges} urge{h.breakUrges === 1 ? "" : "s"} resisted
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -315,7 +455,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function HabitModal({ habit, onClose }: { habit: HabitDTO | null; onClose: () => void }) {
+function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null; values: Ref[]; goals: Ref[]; onClose: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState({
@@ -324,11 +464,14 @@ function HabitModal({ habit, onClose }: { habit: HabitDTO | null; onClose: () =>
     type: habit?.type ?? "build",
     cadence: habit?.cadence ?? "daily",
     targetCount: habit?.targetCount != null ? String(habit.targetCount) : "3",
+    valueId: habit?.valueId ?? "",
+    goalId: habit?.goalId ?? "",
     cue: habit?.cue ?? "",
     craving: habit?.craving ?? "",
     response: habit?.response ?? "",
     reward: habit?.reward ?? "",
     twoMinVersion: habit?.twoMinVersion ?? "",
+    rewardBundle: habit?.rewardBundle ?? "",
   });
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
 
@@ -351,11 +494,14 @@ function HabitModal({ habit, onClose }: { habit: HabitDTO | null; onClose: () =>
       cadence: f.cadence,
       targetCount: f.cadence === "weekly_count" ? Number(f.targetCount) || 1 : null,
       weekdays: f.cadence === "weekdays" ? weekdays : null,
+      valueId: f.valueId || null,
+      goalId: f.goalId || null,
       cue: f.cue,
       craving: f.craving,
       response: f.response,
       reward: f.reward,
       twoMinVersion: f.twoMinVersion,
+      rewardBundle: f.rewardBundle,
     };
     const res = await fetch("/api/habits", {
       method: habit ? "PUT" : "POST",
@@ -475,6 +621,37 @@ function HabitModal({ habit, onClose }: { habit: HabitDTO | null; onClose: () =>
                 </div>
               </Field>
             )}
+
+            {(values.length > 0 || goals.length > 0) && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Value it serves">
+                  <select value={f.valueId} onChange={(e) => set("valueId", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                    <option value="">— none —</option>
+                    {values.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Leading indicator for">
+                  <select value={f.goalId} onChange={(e) => set("goalId", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+                    <option value="">— no goal —</option>
+                    {goals.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
+
+            <Field label="Reward bundle (temptation bundling)">
+              <input
+                value={f.rewardBundle}
+                onChange={(e) => set("rewardBundle", e.target.value)}
+                placeholder="Pair it with a treat — e.g. a Spotify playlist link"
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </Field>
 
             <details className="rounded-lg px-3 py-2" style={{ background: "var(--color-surface-2)" }}>
               <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--color-muted)" }}>

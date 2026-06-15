@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { normaliseUrl } from "@/lib/references";
 
 type HabitInput = {
   name?: string;
@@ -13,7 +14,10 @@ type HabitInput = {
   response?: string | null;
   reward?: string | null;
   twoMinVersion?: string | null;
+  rewardBundle?: string | null; // temptation bundling link/URI
   archived?: boolean;
+  goalId?: string | null; // leading-indicator link
+  valueId?: string | null; // identity it votes for
 };
 
 const CADENCES = new Set(["daily", "weekly_count", "weekdays"]);
@@ -51,7 +55,10 @@ function normalise(body: HabitInput) {
     response: clean(body.response),
     reward: clean(body.reward),
     twoMinVersion: clean(body.twoMinVersion),
+    rewardBundle: normaliseUrl(body.rewardBundle),
     archived: !!body.archived,
+    goalId: clean(body.goalId),
+    valueId: clean(body.valueId),
   };
 }
 
