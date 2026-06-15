@@ -47,3 +47,9 @@ next-env.d.ts
 /data/uploads/
 *.db
 *.db-journal
+
+# local db backups (e.g. dev.db.backup-20260614-232902)
+dev.db.backup-*
+
+# one-off personal import script (not part of the app)
+/prisma/import-2025.ts
