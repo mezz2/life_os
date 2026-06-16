@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Battery, Smile, Moon, TrendingUp, Sparkles } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui";
+import { HintCard } from "@/components/Guidance";
+import { PAGE_HINTS } from "@/lib/guidance";
 import { Sparkline } from "@/components/Sparkline";
 import { pct } from "@/lib/format";
 
@@ -54,7 +56,9 @@ export function CheckinClient({
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-5">
+    <div>
+      <HintCard hint={PAGE_HINTS.checkin} />
+      <div className="grid lg:grid-cols-2 gap-5">
       <Card>
         <div className="text-sm font-medium mb-4">{todayCheckin ? "Today’s check-in" : "How are you today?"}</div>
 
@@ -135,6 +139,7 @@ export function CheckinClient({
             </div>
           )}
         </Card>
+      </div>
       </div>
     </div>
   );

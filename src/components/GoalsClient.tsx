@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, X, Trash2, ArrowUpRight } from "lucide-react";
-import { Card, Badge, EmptyState } from "@/components/ui";
+import { Card, Badge } from "@/components/ui";
+import { HintCard, InfoTip, CoachEmptyState } from "@/components/Guidance";
+import { PAGE_HINTS, COACH } from "@/lib/guidance";
 import { Portal } from "@/components/Portal";
 import { DatePicker } from "@/components/DatePicker";
 import { aud, fmtDate } from "@/lib/format";
@@ -53,9 +55,11 @@ export function GoalsClient({ goals, buckets, values }: { goals: GoalDTO[]; buck
 
   return (
     <div>
+      <HintCard hint={PAGE_HINTS.goals} />
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
           This year
+          <InfoTip concept="short-goal" />
         </div>
         <button
           onClick={() => setAdding(true)}
@@ -67,7 +71,18 @@ export function GoalsClient({ goals, buckets, values }: { goals: GoalDTO[]; buck
       </div>
 
       {short.length === 0 ? (
-        <EmptyState title="No short-term goals yet" hint="Click “Add goal” to create one." />
+        <CoachEmptyState
+          coach={COACH.goals}
+          action={
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+              style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+            >
+              <Plus size={16} /> Add your first goal
+            </button>
+          }
+        />
       ) : (
         <div className="grid md:grid-cols-2 gap-4 mb-8">
           {short.map((g) => (
@@ -76,11 +91,16 @@ export function GoalsClient({ goals, buckets, values }: { goals: GoalDTO[]; buck
         </div>
       )}
 
-      <div className="text-xs uppercase tracking-wide mb-3" style={{ color: "var(--color-muted)" }}>
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide mb-3" style={{ color: "var(--color-muted)" }}>
         Long term
+        <InfoTip concept="long-goal" />
       </div>
       {long.length === 0 ? (
-        <EmptyState title="No long-term goals yet" />
+        <Card className="text-center py-8 text-sm" >
+          <span style={{ color: "var(--color-muted)" }}>
+            No long-term goals yet — the 1–5 year picture your yearly goals build toward.
+          </span>
+        </Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {long.map((g) => (
@@ -193,11 +213,12 @@ function GoalCard({ g, buy, onClick }: { g: GoalDTO; buy?: { target: number; sub
 
 const inputStyle = { background: "var(--color-surface-2)", border: "1px solid var(--color-border)" } as const;
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+      <label className="flex items-center gap-1.5 text-xs mb-1" style={{ color: "var(--color-muted)" }}>
         {label}
+        {hint && <InfoTip concept={hint} />}
       </label>
       {children}
     </div>
@@ -320,7 +341,7 @@ function GoalModal({ goal, buckets, values, onClose }: { goal: GoalDTO | null; b
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Term">
+            <Field label="Term" hint="goal">
               <select value={f.term} onChange={(e) => set("term", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
                 <option value="short">This year</option>
                 <option value="long">Long term</option>
@@ -329,7 +350,7 @@ function GoalModal({ goal, buckets, values, onClose }: { goal: GoalDTO | null; b
             <Field label="Target date">
               <DatePicker value={f.targetDate} onChange={(v) => set("targetDate", v)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
             </Field>
-            <Field label={isHouse ? "Target (in Project BUY)" : "Target amount"}>
+            <Field label={isHouse ? "Target (in Project BUY)" : "Target amount"} hint="lagging-indicator">
               <input type="number" inputMode="decimal" value={f.targetAmount} onChange={(e) => set("targetAmount", e.target.value)} disabled={isHouse} className="w-full rounded-lg px-3 py-2 text-sm num disabled:opacity-50 disabled:cursor-not-allowed" style={inputStyle} />
             </Field>
             <Field label="Current amount">

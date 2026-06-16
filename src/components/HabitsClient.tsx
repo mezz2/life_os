@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Trash2, Check, Flame, AlertTriangle, Vote, Shield, ShieldX, Gift } from "lucide-react";
+import { Plus, X, Trash2, Check, Flame, AlertTriangle, Vote, Shield, ShieldX, Gift, Battery, Smile, Moon } from "lucide-react";
 import { Card, Badge, EmptyState } from "@/components/ui";
+import { HintCard, InfoTip } from "@/components/Guidance";
+import { PAGE_HINTS } from "@/lib/guidance";
 import { Portal } from "@/components/Portal";
 import { pct } from "@/lib/format";
 import { addDaysKey } from "@/lib/habits";
@@ -59,6 +61,13 @@ function cadenceLabel(h: { cadence: string; targetCount: number | null; weekdays
   return "Daily";
 }
 
+export type TodayCheckin = {
+  energy: number;
+  mood: number;
+  sleepHours: number | null;
+  focusValueId: string | null;
+};
+
 export function HabitsClient({
   habits,
   today,
@@ -66,6 +75,7 @@ export function HabitsClient({
   votes,
   values,
   goals,
+  todayCheckin,
 }: {
   habits: HabitDTO[];
   today: string;
@@ -73,6 +83,7 @@ export function HabitsClient({
   votes: VotesDTO;
   values: Ref[];
   goals: Ref[];
+  todayCheckin: TodayCheckin | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<HabitDTO | null>(null);
@@ -98,6 +109,8 @@ export function HabitsClient({
 
   return (
     <div>
+      <HintCard hint={PAGE_HINTS.habits} />
+      <CompactCheckin today={today} checkin={todayCheckin} values={values} />
       {votes.total > 0 && <VotesBanner votes={votes} />}
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
@@ -146,8 +159,11 @@ export function HabitsClient({
 
       {breakHabits.length > 0 && (
         <>
-          <div className="text-xs uppercase tracking-wide mb-3 mt-8" style={{ color: "var(--color-muted)" }}>
-            Breaking
+          <div className="mt-8 mb-3">
+            <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Breaking</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--color-muted)" }}>
+              Log when you resist or slip — the timer tracks how long you&apos;ve stayed clean.
+            </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             {breakHabits.map((h) => (
@@ -160,6 +176,137 @@ export function HabitsClient({
       {editing && <HabitModal habit={editing} values={values} goals={goals} onClose={() => setEditing(null)} />}
       {adding && <HabitModal habit={null} values={values} goals={goals} onClose={() => setAdding(false)} />}
     </div>
+  );
+}
+
+const SCALE = [1, 2, 3, 4, 5];
+
+function CompactCheckin({
+  today,
+  checkin,
+  values,
+}: {
+  today: string;
+  checkin: TodayCheckin | null;
+  values: Ref[];
+}) {
+  const router = useRouter();
+  const [energy, setEnergy] = useState(checkin?.energy ?? 3);
+  const [mood, setMood] = useState(checkin?.mood ?? 3);
+  const [sleep, setSleep] = useState(checkin?.sleepHours != null ? String(checkin.sleepHours) : "");
+  const [focusValueId, setFocusValueId] = useState(checkin?.focusValueId ?? "");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    await fetch("/api/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: today,
+        energy,
+        mood,
+        sleepHours: sleep === "" ? null : Number(sleep),
+        focusValueId: focusValueId || null,
+      }),
+    });
+    setBusy(false);
+    setSaved(true);
+    router.refresh();
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <Card className="mb-5">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium">{checkin ? "Today's check-in" : "How are you today?"}</span>
+        {saved && <span className="text-xs" style={{ color: "var(--color-accent)" }}>Saved ✓</span>}
+      </div>
+
+      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <div className="flex items-center gap-1.5 text-xs mb-1.5" style={{ color: "var(--color-muted)" }}>
+            <Battery size={13} /> Energy
+          </div>
+          <div className="flex gap-1">
+            {SCALE.map((n) => (
+              <button
+                key={n}
+                onClick={() => setEnergy(n)}
+                className="flex-1 rounded py-1.5 text-xs num transition-colors"
+                style={{
+                  background: n <= energy ? "var(--color-accent-dim)" : "var(--color-surface-2)",
+                  border: `1px solid ${n === energy ? "var(--color-accent)" : "transparent"}`,
+                  color: n <= energy ? "var(--color-accent)" : "var(--color-muted)",
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-xs mb-1.5" style={{ color: "var(--color-muted)" }}>
+            <Smile size={13} /> Mood
+          </div>
+          <div className="flex gap-1">
+            {SCALE.map((n) => (
+              <button
+                key={n}
+                onClick={() => setMood(n)}
+                className="flex-1 rounded py-1.5 text-xs num transition-colors"
+                style={{
+                  background: n <= mood ? "var(--color-accent-dim)" : "var(--color-surface-2)",
+                  border: `1px solid ${n === mood ? "var(--color-accent)" : "transparent"}`,
+                  color: n <= mood ? "var(--color-accent)" : "var(--color-muted)",
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs" style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)" }}>
+          <Moon size={13} style={{ color: "var(--color-muted)" }} />
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.5"
+            min={0}
+            max={24}
+            value={sleep}
+            onChange={(e) => setSleep(e.target.value)}
+            placeholder="Sleep hrs"
+            className="w-16 bg-transparent text-xs num outline-none"
+          />
+        </div>
+        {values.length > 0 && (
+          <select
+            value={focusValueId}
+            onChange={(e) => setFocusValueId(e.target.value)}
+            className="flex-1 rounded-lg px-2 py-1.5 text-xs"
+            style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border)", color: focusValueId ? "var(--color-text)" : "var(--color-muted)" }}
+          >
+            <option value="">Where did your time go?</option>
+            {values.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        )}
+        <button
+          onClick={save}
+          disabled={busy}
+          className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 shrink-0"
+          style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+        >
+          {busy ? "…" : checkin ? "Update" : "Save"}
+        </button>
+      </div>
+    </Card>
   );
 }
 
@@ -208,7 +355,7 @@ function TodayRow({
   return (
     <div
       onClick={onEdit}
-      className="card flex items-center gap-3 p-3 cursor-pointer transition-colors hover:border-[var(--color-accent)]"
+      className="card flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors hover:border-[var(--color-accent)]"
     >
       <button
         onClick={(e) => {
@@ -217,26 +364,21 @@ function TodayRow({
         }}
         disabled={busy}
         aria-label={done ? "Mark not done" : "Mark done"}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors disabled:opacity-50"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors disabled:opacity-50"
         style={{
           background: done ? "var(--color-accent)" : "var(--color-surface-2)",
           border: `1px solid ${done ? "var(--color-accent)" : "var(--color-border)"}`,
           color: done ? "var(--color-bg)" : "var(--color-muted)",
         }}
       >
-        {done && <Check size={18} />}
+        {done && <Check size={16} />}
       </button>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className={`font-medium truncate ${done ? "line-through opacity-60" : ""}`}>{h.name}</span>
+          <span className={`text-sm font-medium truncate ${done ? "line-through opacity-60" : ""}`}>{h.name}</span>
           {h.type === "break" && <Badge tone="warn">break</Badge>}
         </div>
-        {h.identityStatement && (
-          <div className="text-xs mt-0.5 truncate" style={{ color: "var(--color-muted)" }}>
-            {h.identityStatement}
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
@@ -444,11 +586,12 @@ function Heatmap({ logs, today, historyDays }: { logs: HabitLogDTO[]; today: str
 
 const inputStyle = { background: "var(--color-surface-2)", border: "1px solid var(--color-border)" } as const;
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+      <label className="flex items-center gap-1.5 text-xs mb-1" style={{ color: "var(--color-muted)" }}>
         {label}
+        {hint && <InfoTip concept={hint} />}
       </label>
       {children}
     </div>
@@ -556,7 +699,7 @@ function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null;
                 style={inputStyle}
               />
             </Field>
-            <Field label="Identity it votes for">
+            <Field label="Identity it votes for" hint="identity-vote">
               <input
                 value={f.identityStatement}
                 onChange={(e) => set("identityStatement", e.target.value)}
@@ -567,13 +710,13 @@ function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null;
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Type">
+              <Field label="Type" hint="build-break">
                 <select value={f.type} onChange={(e) => set("type", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
                   <option value="build">Build</option>
                   <option value="break">Break</option>
                 </select>
               </Field>
-              <Field label="Cadence">
+              <Field label="Cadence" hint="cadence">
                 <select value={f.cadence} onChange={(e) => set("cadence", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
                   <option value="daily">Daily</option>
                   <option value="weekly_count">Times per week</option>
@@ -632,7 +775,7 @@ function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null;
                     ))}
                   </select>
                 </Field>
-                <Field label="Leading indicator for">
+                <Field label="Leading indicator for" hint="leading-indicator">
                   <select value={f.goalId} onChange={(e) => set("goalId", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
                     <option value="">— no goal —</option>
                     {goals.map((g) => (
@@ -643,7 +786,7 @@ function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null;
               </div>
             )}
 
-            <Field label="Reward bundle (temptation bundling)">
+            <Field label="Reward bundle (temptation bundling)" hint="temptation-bundle">
               <input
                 value={f.rewardBundle}
                 onChange={(e) => set("rewardBundle", e.target.value)}
@@ -658,19 +801,19 @@ function HabitModal({ habit, values, goals, onClose }: { habit: HabitDTO | null;
                 The 4 laws (optional)
               </summary>
               <div className="space-y-3 mt-3">
-                <Field label="Two-minute version">
+                <Field label="Two-minute version" hint="two-minute">
                   <input value={f.twoMinVersion} onChange={(e) => set("twoMinVersion", e.target.value)} placeholder="Make it so easy you can't say no" className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, background: "var(--color-bg)" }} />
                 </Field>
-                <Field label="Cue (make it obvious)">
+                <Field label="Cue (make it obvious)" hint="cue">
                   <input value={f.cue} onChange={(e) => set("cue", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, background: "var(--color-bg)" }} />
                 </Field>
-                <Field label="Craving (make it attractive)">
+                <Field label="Craving (make it attractive)" hint="craving">
                   <input value={f.craving} onChange={(e) => set("craving", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, background: "var(--color-bg)" }} />
                 </Field>
-                <Field label="Response (make it easy)">
+                <Field label="Response (make it easy)" hint="response">
                   <input value={f.response} onChange={(e) => set("response", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, background: "var(--color-bg)" }} />
                 </Field>
-                <Field label="Reward (make it satisfying)">
+                <Field label="Reward (make it satisfying)" hint="reward">
                   <input value={f.reward} onChange={(e) => set("reward", e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={{ ...inputStyle, background: "var(--color-bg)" }} />
                 </Field>
               </div>

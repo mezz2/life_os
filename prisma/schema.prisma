@@ -138,6 +138,7 @@ model Value {
   seasons     Season[]
   references  Reference[]
   subcategories Subcategory[]
+  checkins    DailyCheckin[]
 }
 
 // ---------- Goals ----------
@@ -208,15 +209,18 @@ model HealthMetric {
 // ---------- Daily check-in (energy layer — Phase 3) ----------
 
 model DailyCheckin {
-  id         String   @id @default(cuid())
-  date       DateTime @unique // UTC midnight, one row per day
-  energy     Int // 1-5
-  mood       Int // 1-5
-  sleepHours Float?
-  note       String?
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  date         DateTime @unique // UTC midnight, one row per day
+  energy       Int // 1-5
+  mood         Int // 1-5
+  sleepHours   Float?
+  note         String?
+  focusValueId String? // "where did my time go today?" — manual proxy until GCal is connected
+  focusValue   Value?   @relation(fields: [focusValueId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
 
   @@index([date])
+  @@index([focusValueId])
 }
 
 // ---------- Calendar cache (time-allocation lens — Phase 4) ----------

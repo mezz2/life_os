@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Wallet, Vote, Battery, Compass, Tag } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui";
+import { HintCard } from "@/components/Guidance";
+import { PAGE_HINTS } from "@/lib/guidance";
 import { aud, pct } from "@/lib/format";
 import type { AlignmentReport, ValueAlignment } from "@/lib/alignment";
 
@@ -35,6 +37,7 @@ export function AlignClient({
 
   return (
     <div className="space-y-6">
+      <HintCard hint={PAGE_HINTS.align} />
       {values.length === 0 ? (
         <EmptyState title="No values yet" hint="Define a few values first — everything rolls up to them." />
       ) : engaged.length === 0 ? (

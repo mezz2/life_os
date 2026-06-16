@@ -21,6 +21,7 @@ import {
   CalendarRange,
   NotebookPen,
   Scale,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/Theme";
@@ -29,7 +30,13 @@ type Item = { href: string; label: string; icon: LucideIcon };
 type Group = { heading: string | null; items: Item[] };
 
 const groups: Group[] = [
-  { heading: null, items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }] },
+  {
+    heading: null,
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/guide", label: "Guide", icon: BookOpen },
+    ],
+  },
   {
     heading: "Finances",
     items: [

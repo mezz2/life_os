@@ -54,7 +54,7 @@ export async function composeNarrative(rules: InsightDraft[]): Promise<InsightDr
     signals: rules.map((r) => r.body),
   };
 
-  const prompt = `You are the financial insights engine inside "LifeOS", a personal finance app for someone in Australia saving toward goals like a first property, extra super, and a stock portfolio.
+  const prompt = `You are the financial insights engine inside "LifeOS", a personal finance app for a disciplined 24-year-old in Australia saving for a first property, extra super, and a $100k stock portfolio.
 
 Here is their recent data:
 ${JSON.stringify(context, null, 2)}

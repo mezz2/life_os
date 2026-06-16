@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, Check, ChevronUp, ChevronDown, Link2, ArrowDown } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui";
+import { HintCard, InfoTip } from "@/components/Guidance";
+import { PAGE_HINTS } from "@/lib/guidance";
 import { Portal } from "@/components/Portal";
 import { reorder, chainProgress } from "@/lib/stacks";
 
@@ -16,8 +18,12 @@ export function StacksClient({ stacks, habits, today }: { stacks: StackDTO[]; ha
 
   return (
     <div>
+      <HintCard hint={PAGE_HINTS.stacks} />
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>Your routines</div>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+          Your routines
+          <InfoTip concept="routine" />
+        </div>
         <button onClick={() => setAdding(true)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium" style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
           <Plus size={16} /> New routine
         </button>
@@ -174,7 +180,9 @@ function StackModal({ stack, onClose }: { stack: StackDTO | null; onClose: () =>
               <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning routine" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>Anchor cue (After I…)</label>
+              <label className="flex items-center gap-1.5 text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+                Anchor cue (After I…) <InfoTip concept="anchor-cue" />
+              </label>
               <input value={cue} onChange={(e) => setCue(e.target.value)} placeholder="e.g. pour my coffee" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
             </div>
           </div>

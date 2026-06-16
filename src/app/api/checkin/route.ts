@@ -7,6 +7,7 @@ type CheckinInput = {
   mood?: number; // 1-5
   sleepHours?: number | null;
   note?: string | null;
+  focusValueId?: string | null;
 };
 
 function clamp1to5(n: unknown): number {
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
     mood: clamp1to5(body.mood),
     sleepHours: Number.isFinite(sleep as number) ? (sleep as number) : null,
     note: body.note?.trim() || null,
+    focusValueId: body.focusValueId || null,
   };
   const row = await db.dailyCheckin.upsert({
     where: { date },

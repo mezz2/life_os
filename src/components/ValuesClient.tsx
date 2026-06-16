@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, Compass, Target, Repeat } from "lucide-react";
-import { Card, Badge, EmptyState } from "@/components/ui";
+import { Card, Badge } from "@/components/ui";
+import { HintCard, InfoTip, CoachEmptyState } from "@/components/Guidance";
+import { PAGE_HINTS, COACH } from "@/lib/guidance";
 import { Portal } from "@/components/Portal";
 import { pct } from "@/lib/format";
 
@@ -30,9 +32,11 @@ export function ValuesClient({ values }: { values: ValueDTO[] }) {
 
   return (
     <div>
+      <HintCard hint={PAGE_HINTS.values} />
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide" style={{ color: "var(--color-muted)" }}>
           Core values
+          <InfoTip concept="value" />
         </div>
         <button
           onClick={() => setAdding(true)}
@@ -44,9 +48,17 @@ export function ValuesClient({ values }: { values: ValueDTO[] }) {
       </div>
 
       {values.length === 0 ? (
-        <EmptyState
-          title="No values yet"
-          hint="Define what you're optimising for, then link goals and habits to each."
+        <CoachEmptyState
+          coach={COACH.values}
+          action={
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+              style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+            >
+              <Plus size={16} /> Add your first value
+            </button>
+          }
         />
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
@@ -169,7 +181,9 @@ function ValueModal({ value, onClose }: { value: ValueDTO | null; onClose: () =>
 
           <div className="space-y-3">
             <div>
-              <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>Value</label>
+              <label className="flex items-center gap-1.5 text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+                Value <InfoTip concept="value" />
+              </label>
               <input
                 autoFocus
                 value={name}
@@ -180,7 +194,9 @@ function ValueModal({ value, onClose }: { value: ValueDTO | null; onClose: () =>
               />
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>What it means to you</label>
+              <label className="flex items-center gap-1.5 text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+                What it means to you <InfoTip concept="value-description" />
+              </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

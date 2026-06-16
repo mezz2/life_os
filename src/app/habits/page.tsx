@@ -26,7 +26,7 @@ export default async function HabitsPage() {
   const today = todayKey();
   const since = addDaysKey(today, -(HISTORY_DAYS - 1));
 
-  const [habits, values, goals, slots] = await Promise.all([
+  const [habits, values, goals, slots, todayCheckinRaw] = await Promise.all([
     db.habit.findMany({
       where: { archived: false },
       orderBy: { sortOrder: "asc" },
@@ -41,6 +41,7 @@ export default async function HabitsPage() {
     db.value.findMany({ orderBy: { sortOrder: "asc" } }),
     db.goal.findMany({ orderBy: { sortOrder: "asc" } }),
     getPageInsights("habits"),
+    db.dailyCheckin.findFirst({ where: { date: new Date(today + "T00:00:00.000Z") } }),
   ]);
 
   const nowISO = new Date().toISOString();
@@ -101,6 +102,12 @@ export default async function HabitsPage() {
         votes={votes}
         values={values.map((v) => ({ id: v.id, name: v.name }))}
         goals={goals.map((g) => ({ id: g.id, name: g.name }))}
+        todayCheckin={todayCheckinRaw ? {
+          energy: todayCheckinRaw.energy,
+          mood: todayCheckinRaw.mood,
+          sleepHours: todayCheckinRaw.sleepHours,
+          focusValueId: todayCheckinRaw.focusValueId,
+        } : null}
       />
     </div>
   );

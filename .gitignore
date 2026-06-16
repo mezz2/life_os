@@ -53,3 +53,4 @@ dev.db.backup-*
 
 # one-off personal import script (not part of the app)
 /prisma/import-2025.ts
+.next.nosync
