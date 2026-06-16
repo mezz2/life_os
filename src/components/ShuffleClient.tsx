@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, X, Trash2, Shuffle, Check, AlertTriangle, Undo2, CalendarDays } from "lucide-react";
+import { Plus, X, Trash2, Shuffle, Check, AlertTriangle, Undo2, CalendarDays, UploadCloud } from "lucide-react";
 import { Card, Badge, EmptyState } from "@/components/ui";
 import { Portal } from "@/components/Portal";
 import { formatMinutes } from "@/lib/calendar";
@@ -45,10 +45,12 @@ export function ShuffleClient({
   weekStart,
   blocks,
   habits,
+  googleConnected,
 }: {
   weekStart: string;
   blocks: TimeBlockDTO[];
   habits: Ref[];
+  googleConnected: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<TimeBlockDTO | null>(null);
@@ -58,6 +60,8 @@ export function ShuffleClient({
   const [demandNote, setDemandNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState<{ batch: string; count: number } | null>(null);
+  const [pushed, setPushed] = useState<number | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   async function propose() {
     setBusy(true);
@@ -78,6 +82,9 @@ export function ShuffleClient({
   async function apply() {
     if (!proposal) return;
     setBusy(true);
+    setPushed(null);
+    setPushError(null);
+    // Local-only — nothing is sent to Google until the user confirms the push.
     const res = await fetch("/api/shuffle/apply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,6 +98,27 @@ export function ShuffleClient({
     }
   }
 
+  async function pushToGoogle() {
+    if (!applied) return;
+    if (!confirm(`Push these ${applied.count} blocks to your Google Calendar? They'll appear on every device. You can still Undo afterwards.`)) return;
+    setBusy(true);
+    setPushError(null);
+    const res = await fetch("/api/shuffle/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ batch: applied.batch }),
+    });
+    const j = await res.json();
+    setBusy(false);
+    if (res.ok) {
+      setPushed(j.pushed);
+      router.refresh();
+    } else {
+      setPushError(j.error ?? "Couldn't push to Google");
+      if (typeof j.pushed === "number" && j.pushed > 0) setPushed(j.pushed);
+    }
+  }
+
   async function undo() {
     setBusy(true);
     await fetch("/api/shuffle/undo", {
@@ -101,6 +129,8 @@ export function ShuffleClient({
     setBusy(false);
     setApplied(null);
     setProposal(null);
+    setPushed(null);
+    setPushError(null);
     router.refresh();
   }
 
@@ -187,14 +217,34 @@ export function ShuffleClient({
             {applied ? (
               <div className="rounded-lg p-3 mb-3" style={{ background: "var(--color-accent-dim)", border: "1px solid var(--color-accent)" }}>
                 <div className="flex items-center gap-2 text-sm" style={{ color: "var(--color-accent)" }}>
-                  <Check size={16} /> Applied {applied.count} blocks to your calendar
+                  <Check size={16} /> Applied {applied.count} blocks to LifeOS
                 </div>
-                <div className="flex items-center gap-2 mt-2">
+
+                {/* Step 2 — explicit, optional push to the real Google Calendar. */}
+                {googleConnected && (
+                  pushed !== null && !pushError ? (
+                    <div className="flex items-center gap-2 mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
+                      <UploadCloud size={13} /> Pushed {pushed} to Google Calendar
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <button onClick={pushToGoogle} disabled={busy} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium disabled:opacity-50" style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
+                        <UploadCloud size={13} /> {busy ? "Pushing…" : "Push to Google Calendar"}
+                      </button>
+                      <div className="text-[11px] mt-1.5" style={{ color: "var(--color-muted)" }}>
+                        Applied locally only. Push to send these to your real Google calendar (syncs to all devices).
+                      </div>
+                      {pushError && <div className="text-[11px] mt-1" style={{ color: "var(--color-negative)" }}>{pushError}</div>}
+                    </div>
+                  )
+                )}
+
+                <div className="flex items-center gap-2 mt-3">
                   <Link href="/calendar" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs" style={{ background: "var(--color-surface-2)" }}>
                     <CalendarDays size={13} /> View on calendar
                   </Link>
                   <button onClick={undo} disabled={busy} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs" style={{ background: "var(--color-surface-2)", color: "var(--color-negative)" }}>
-                    <Undo2 size={13} /> Undo
+                    <Undo2 size={13} /> Undo{pushed ? " (removes from Google too)" : ""}
                   </button>
                 </div>
               </div>
@@ -203,7 +253,9 @@ export function ShuffleClient({
                 <button onClick={apply} disabled={busy || proposal.placements.length === 0} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50" style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}>
                   <Check size={15} /> Apply to calendar
                 </button>
-                <span className="text-[11px]" style={{ color: "var(--color-muted)" }}>Nothing is written until you apply.</span>
+                <span className="text-[11px]" style={{ color: "var(--color-muted)" }}>
+                  {googleConnected ? "Applies to LifeOS only — Google push is a separate confirm." : "Nothing is written until you apply."}
+                </span>
               </div>
             )}
 

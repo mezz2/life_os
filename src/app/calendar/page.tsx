@@ -3,13 +3,14 @@ import { CalendarClient, type CalEventDTO } from "@/components/CalendarClient";
 import { db } from "@/lib/db";
 import { todayKey, startOfWeekKey, addDaysKey, dateKey } from "@/lib/habits";
 import { timeByValue, type EventLite } from "@/lib/calendar";
+import { getConnection, isConfigured } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; connected?: string; error?: string }>;
 }) {
   const sp = await searchParams;
   // `week` is any day in the target week; default to this week.
@@ -17,7 +18,7 @@ export default async function CalendarPage({
   const weekStart = startOfWeekKey(anchor);
   const weekEnd = addDaysKey(weekStart, 7); // exclusive
 
-  const [events, values] = await Promise.all([
+  const [events, values, connection] = await Promise.all([
     db.calendarEvent.findMany({
       where: {
         start: { gte: new Date(weekStart + "T00:00:00.000Z"), lt: new Date(weekEnd + "T00:00:00.000Z") },
@@ -25,6 +26,7 @@ export default async function CalendarPage({
       orderBy: { start: "asc" },
     }),
     db.value.findMany({ orderBy: { sortOrder: "asc" } }),
+    getConnection(),
   ]);
 
   const dto: CalEventDTO[] = events.map((e) => ({
@@ -59,6 +61,13 @@ export default async function CalendarPage({
         events={dto}
         byValue={byValue}
         values={values.map((v) => ({ id: v.id, name: v.name }))}
+        google={{
+          configured: isConfigured(),
+          connected: !!connection,
+          calendarId: connection?.calendarId ?? null,
+          syncedAt: connection?.updatedAt?.toISOString() ?? null,
+        }}
+        notice={sp.connected ? "connected" : sp.error ?? null}
       />
     </div>
   );

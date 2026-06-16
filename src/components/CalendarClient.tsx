@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Clock, RefreshCw, Link2, Unlink, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Card, Badge, EmptyState } from "@/components/ui";
 import { Portal } from "@/components/Portal";
 import { formatMinutes, durationMin, weekDayKeys, RIGIDITIES, type ValueTime } from "@/lib/calendar";
@@ -21,6 +21,13 @@ export type CalEventDTO = {
 };
 
 type Ref = { id: string; name: string };
+
+export type GoogleState = {
+  configured: boolean;
+  connected: boolean;
+  calendarId: string | null;
+  syncedAt: string | null;
+};
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Stable palette for value bars/dots.
@@ -52,6 +59,8 @@ export function CalendarClient({
   events,
   byValue,
   values,
+  google,
+  notice,
 }: {
   weekStart: string;
   prevWeek: string;
@@ -60,6 +69,8 @@ export function CalendarClient({
   events: CalEventDTO[];
   byValue: ValueTime[];
   values: Ref[];
+  google: GoogleState;
+  notice: string | null;
 }) {
   const [editing, setEditing] = useState<CalEventDTO | null>(null);
   const days = weekDayKeys(weekStart);
@@ -67,6 +78,7 @@ export function CalendarClient({
 
   return (
     <div>
+      <SyncBar google={google} notice={notice} />
       <div className="flex items-center justify-between mb-4">
         <div className="text-sm font-medium">{fmtRange(weekStart)}</div>
         <div className="flex items-center gap-1">
@@ -85,7 +97,9 @@ export function CalendarClient({
       {events.length === 0 ? (
         <EmptyState
           title="No events cached for this week"
-          hint="Sync from Google Calendar (POST events to /api/calendar/sync) or add an event, then tag each to a value."
+          hint={google.connected
+            ? "Hit Refresh sync to pull this week from Google, then tag each event to a value."
+            : "Connect Google Calendar above to sync your events, then tag each to a value."}
         />
       ) : (
         <>
@@ -151,23 +165,179 @@ export function CalendarClient({
 
 const inputStyle = { background: "var(--color-surface-2)", border: "1px solid var(--color-border)" } as const;
 
+function relativeTime(iso: string | null): string {
+  if (!iso) return "never";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function SyncBar({ google, notice }: { google: GoogleState; notice: string | null }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function refresh() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/calendar/refresh", { method: "POST" });
+      const data = (await res.json()) as { added?: number; updated?: number; error?: string };
+      if (!res.ok) {
+        setMsg(data.error ?? "Sync failed");
+      } else {
+        setMsg(`Synced — ${data.added ?? 0} new, ${data.updated ?? 0} updated`);
+        router.refresh();
+      }
+    } catch {
+      setMsg("Sync failed — is the app online?");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnect() {
+    if (!confirm("Forget the Google Calendar connection on this device? Your events stay cached. Revoke fully at myaccount.google.com.")) return;
+    await fetch("/api/calendar/auth", { method: "DELETE" });
+    router.refresh();
+  }
+
+  // One-time banner from the OAuth redirect.
+  const banner =
+    notice === "connected"
+      ? { ok: true, text: "Google Calendar connected. Hit Refresh sync to pull your events." }
+      : notice === "not-configured"
+        ? { ok: false, text: "Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.local, then restart the app." }
+        : notice
+          ? { ok: false, text: `Connection error: ${notice}` }
+          : null;
+
+  return (
+    <div className="mb-4">
+      {banner && (
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 mb-3 text-xs"
+          style={{
+            background: "var(--color-surface-2)",
+            border: `1px solid ${banner.ok ? "var(--color-accent)" : "#f87171"}`,
+            color: banner.ok ? "var(--color-accent)" : "#f87171",
+          }}
+        >
+          {banner.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          <span>{banner.text}</span>
+        </div>
+      )}
+      <Card>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="inline-block w-2 h-2 rounded-full shrink-0"
+              style={{ background: google.connected ? "var(--color-accent)" : "var(--color-border)" }}
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-medium">
+                {google.connected ? "Google Calendar connected" : "Google Calendar not connected"}
+              </div>
+              <div className="text-[11px]" style={{ color: "var(--color-muted)" }}>
+                {google.connected
+                  ? `${google.calendarId ?? "primary"} · last sync ${relativeTime(google.syncedAt)}`
+                  : google.configured
+                    ? "Connect to sync events and edit your schedule from here."
+                    : "Add Google credentials to .env.local to enable syncing."}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 ml-auto">
+            {google.connected ? (
+              <>
+                <button
+                  onClick={refresh}
+                  disabled={busy}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-50"
+                  style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
+                >
+                  <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
+                  {busy ? "Syncing…" : "Refresh sync"}
+                </button>
+                <button
+                  onClick={disconnect}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs"
+                  style={{ background: "var(--color-surface-2)", color: "var(--color-muted)" }}
+                  aria-label="Disconnect"
+                >
+                  <Unlink size={14} />
+                </button>
+              </>
+            ) : (
+              <a
+                href="/api/calendar/auth"
+                aria-disabled={!google.configured}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
+                style={{
+                  background: google.configured ? "var(--color-accent)" : "var(--color-surface-2)",
+                  color: google.configured ? "var(--color-bg)" : "var(--color-muted)",
+                  pointerEvents: google.configured ? "auto" : "none",
+                }}
+              >
+                <Link2 size={14} />
+                Connect Google Calendar
+              </a>
+            )}
+          </div>
+        </div>
+        {msg && (
+          <div className="text-[11px] mt-2" style={{ color: "var(--color-muted)" }}>{msg}</div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ISO ⇄ <input type="datetime-local"> value (local wall-clock).
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function TagModal({ event, values, onClose }: { event: CalEventDTO; values: Ref[]; onClose: () => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [rigidity, setRigidity] = useState(event.rigidity);
   const [valueId, setValueId] = useState(event.valueId ?? "");
+  const [title, setTitle] = useState(event.title);
+  const [start, setStart] = useState(event.allDay ? event.start : toLocalInput(event.start));
+  const [end, setEnd] = useState(event.allDay ? event.end : toLocalInput(event.end));
 
   async function save() {
     setBusy(true);
+    setErr(null);
+    // Only send schedule fields when they actually changed, so tagging-only
+    // saves don't trigger a Google write.
+    const body: Record<string, unknown> = { id: event.id, rigidity, valueId: valueId || null };
+    if (title.trim() !== event.title) body.title = title.trim();
+    if (!event.allDay) {
+      const startIso = new Date(start).toISOString();
+      const endIso = new Date(end).toISOString();
+      if (startIso !== event.start) body.start = startIso;
+      if (endIso !== event.end) body.end = endIso;
+    }
     const res = await fetch("/api/calendar/event", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: event.id, rigidity, valueId: valueId || null }),
+      body: JSON.stringify(body),
     });
     setBusy(false);
     if (res.ok) {
       onClose();
       router.refresh();
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setErr(data.error ?? "Couldn't save");
     }
   }
 
@@ -181,17 +351,51 @@ function TagModal({ event, values, onClose }: { event: CalEventDTO; values: Ref[
         style={{ background: "rgba(0,0,0,0.6)" }}
       >
         <div className="anim-pop card p-6 w-full max-w-md my-8">
-          <div className="flex items-center justify-between mb-1">
-            <div className="font-semibold truncate">{event.title}</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-medium" style={{ color: "var(--color-muted)" }}>Edit event</div>
             <button onClick={onClose} style={{ color: "var(--color-muted)" }}>
               <X size={18} />
             </button>
           </div>
-          <div className="text-xs mb-4" style={{ color: "var(--color-muted)" }}>
-            {event.allDay ? "All day" : `${timeLabel(event.start)} – ${timeLabel(event.end)}`}
-          </div>
 
           <div className="space-y-3">
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+            {event.allDay ? (
+              <div className="text-[11px]" style={{ color: "var(--color-muted)" }}>
+                All-day event — edit the date in Google Calendar.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>Start</label>
+                  <input
+                    type="datetime-local"
+                    value={start}
+                    onChange={(e) => setStart(e.target.value)}
+                    className="w-full rounded-lg px-2 py-2 text-sm"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: "var(--color-muted)" }}>End</label>
+                  <input
+                    type="datetime-local"
+                    value={end}
+                    onChange={(e) => setEnd(e.target.value)}
+                    className="w-full rounded-lg px-2 py-2 text-sm"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+            )}
             <div>
               <label className="block text-xs mb-1.5" style={{ color: "var(--color-muted)" }}>Flexibility (used by the shuffle engine)</label>
               <div className="grid grid-cols-4 gap-1.5">
@@ -231,13 +435,16 @@ function TagModal({ event, values, onClose }: { event: CalEventDTO; values: Ref[
             )}
           </div>
 
+          {err && (
+            <div className="text-[11px] mt-3" style={{ color: "#f87171" }}>{err}</div>
+          )}
           <button
             onClick={save}
             disabled={busy}
-            className="mt-5 w-full rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
+            className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
             style={{ background: "var(--color-accent)", color: "var(--color-bg)" }}
           >
-            {busy ? "Saving…" : "Save tags"}
+            {busy ? "Saving…" : "Save"}
           </button>
           {event.rigidity && (
             <div className="flex justify-center mt-3">

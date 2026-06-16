@@ -2,13 +2,15 @@ import { PageHeader } from "@/components/ui";
 import { ShuffleClient, type TimeBlockDTO } from "@/components/ShuffleClient";
 import { db } from "@/lib/db";
 import { todayKey, startOfWeekKey } from "@/lib/habits";
+import { getConnection } from "@/lib/google-calendar";
 
 export const dynamic = "force-dynamic";
 
 export default async function ShufflePage() {
-  const [blocks, habits] = await Promise.all([
+  const [blocks, habits, connection] = await Promise.all([
     db.timeBlock.findMany({ orderBy: { priority: "asc" } }),
     db.habit.findMany({ where: { archived: false }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
+    getConnection(),
   ]);
 
   const dto: TimeBlockDTO[] = blocks.map((b) => ({
@@ -35,6 +37,7 @@ export default async function ShufflePage() {
         weekStart={startOfWeekKey(todayKey())}
         blocks={dto}
         habits={habits}
+        googleConnected={!!connection}
       />
     </div>
   );

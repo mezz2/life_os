@@ -245,6 +245,23 @@ model CalendarEvent {
   @@index([shuffleBatch])
 }
 
+// ---------- Google Calendar OAuth (write-back) ----------
+// Single-row credential store. App credentials (client id/secret) live in .env;
+// this holds the user's grant — the offline refresh token plus the latest
+// access token/expiry, so the server can act on Google on the user's behalf.
+// Local SQLite only; never committed, same trust boundary as .env.
+
+model GoogleCalendarAuth {
+  id           String    @id @default("singleton") // enforce one row
+  refreshToken String // long-lived offline grant
+  accessToken  String? // short-lived; refreshed as needed
+  expiry       DateTime? // accessToken expiry
+  calendarId   String    @default("primary") // which calendar to sync/write
+  email        String? // connected Google account, for display
+  connectedAt  DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 // ---------- Weekly review (Phase 6) ----------
 
 model WeeklyReview {
