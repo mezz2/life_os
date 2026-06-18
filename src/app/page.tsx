@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card, Badge } from "@/components/ui";
 import { Sparkline } from "@/components/Sparkline";
 import { InsightCard } from "@/components/InsightCard";
+import { TodayStrip } from "@/components/TodayStrip";
+import { GettingStarted, type SetupProgress } from "@/components/GettingStarted";
 import { db } from "@/lib/db";
 import { getNeedsAttention } from "@/lib/insights/store";
 import { insightHref } from "@/lib/insights/placement";
@@ -20,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
   const month = currentMonthKey();
-  const [nw, series, flow, budgetTotal, actuals, goals, attention, recent] = await Promise.all([
+  const [nw, series, flow, budgetTotal, actuals, goals, attention, recent, setup] = await Promise.all([
     getLatestNetWorth(),
     getNetWorthSeries(),
     getMonthFlow(month),
@@ -33,6 +35,7 @@ export default async function Dashboard() {
       take: 6,
       include: { subcategory: { select: { name: true } }, account: { select: { name: true } } },
     }),
+    getSetupProgress(),
   ]);
 
   const actualSpend = [...actuals.entries()].reduce((s, [, v]) => s + (v < 0 ? Math.abs(v) : 0), 0);
@@ -50,9 +53,13 @@ export default async function Dashboard() {
           {process.env.NEXT_PUBLIC_USER_NAME ? `, ${process.env.NEXT_PUBLIC_USER_NAME}` : ""}
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--color-muted)" }}>
-          Here&apos;s your financial picture for {monthLabel(month)}.
+          Your life at a glance — {monthLabel(month)}.
         </p>
       </div>
+
+      <GettingStarted progress={setup} />
+
+      <TodayStrip />
 
       <div className="grid lg:grid-cols-3 gap-4 mb-4">
         {/* Net worth hero */}
@@ -215,6 +222,27 @@ export default async function Dashboard() {
       </div>
     </div>
   );
+}
+
+// Drives the getting-started checklist: which pieces of the values → goals →
+// habits chain already exist. Each is a cheap existence check.
+async function getSetupProgress(): Promise<SetupProgress> {
+  const [values, goals, habits, identity, routines, checkins] = await Promise.all([
+    db.value.count(),
+    db.goal.count(),
+    db.habit.count({ where: { archived: false } }),
+    db.habit.count({ where: { archived: false, NOT: { identityStatement: null } } }),
+    db.habitStack.count(),
+    db.dailyCheckin.count(),
+  ]);
+  return {
+    values: values > 0,
+    goals: goals > 0,
+    habits: habits > 0,
+    identity: identity > 0,
+    routine: routines > 0,
+    checkin: checkins > 0,
+  };
 }
 
 function Row({

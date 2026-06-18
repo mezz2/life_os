@@ -2,7 +2,7 @@
 // severity), so the routing can evolve without a DB migration. One home per
 // insight — an insight shows on exactly one page/slot, never duplicated.
 
-export type InsightPage = "budget" | "goals" | "net-worth";
+export type InsightPage = "budget" | "goals" | "net-worth" | "habits" | "align";
 export type Placement = { page: InsightPage; slot: string };
 
 // A minimal shape — works for both Prisma rows and InsightDTOs.
@@ -27,6 +27,8 @@ export function placement(i: Routable): Placement {
       return { page: "goals", slot: "goals" };
     case "net_worth":
       return { page: "net-worth", slot: "net-worth" };
+    case "alignment":
+      return { page: "align", slot: "align" };
     default:
       return { page: "budget", slot: "flows" };
   }

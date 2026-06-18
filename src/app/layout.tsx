@@ -15,8 +15,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LifeOS — Finances",
-  description: "Personal finance command centre",
+  title: "LifeOS",
+  description: "Your local-first life dashboard — finances, habits, time and goals",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

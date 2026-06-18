@@ -23,6 +23,19 @@ echo "Project: $PROJECT_DIR"
 echo "Node:    $NODE_BIN"
 echo
 
+# The project must NOT live in an iCloud-synced folder (~/Desktop, ~/Documents):
+# iCloud evicts files under .next within ~20s of a build, corrupting the
+# production bundle so `next start` fails with "Could not find a production
+# build" / ENOENT scandir .next/static. Keep it somewhere unsynced (e.g.
+# ~/Claude). Bail early with a clear message if that's not the case.
+case "$PROJECT_DIR" in
+  "$HOME/Desktop/"*|"$HOME/Documents/"*)
+    echo "Error: $PROJECT_DIR is inside an iCloud-synced folder." >&2
+    echo "iCloud will evict the .next build and the service will crash-loop." >&2
+    echo "Move the project somewhere unsynced (e.g. ~/Claude) and re-run." >&2
+    exit 1 ;;
+esac
+
 echo "==> Building the production bundle (this can take a minute)…"
 ( cd "$PROJECT_DIR" && npm run build )
 

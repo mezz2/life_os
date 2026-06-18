@@ -26,14 +26,15 @@ export async function POST(req: NextRequest) {
 
 // Rename / regroup a subcategory.
 export async function PATCH(req: NextRequest) {
-  const { id, name, group } = (await req.json()) as {
+  const { id, name, group, valueId } = (await req.json()) as {
     id?: string;
     name?: string;
     group?: string | null;
+    valueId?: string | null;
   };
   if (!id) return NextResponse.json({ error: "Missing subcategory id." }, { status: 400 });
 
-  const data: { name?: string; group?: string | null } = {};
+  const data: { name?: string; group?: string | null; valueId?: string | null } = {};
   if (name !== undefined) {
     const n = name.trim();
     if (!n) return NextResponse.json({ error: "Subcategory name cannot be empty." }, { status: 400 });
@@ -47,6 +48,7 @@ export async function PATCH(req: NextRequest) {
     data.name = n;
   }
   if (group !== undefined) data.group = group?.trim() || null;
+  if (valueId !== undefined) data.valueId = valueId || null;
 
   await db.subcategory.update({ where: { id }, data });
   return NextResponse.json({ ok: true });

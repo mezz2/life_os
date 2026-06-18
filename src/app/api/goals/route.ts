@@ -4,13 +4,17 @@ import { db } from "@/lib/db";
 type GoalInput = {
   name?: string;
   term?: string;
+  kind?: string; // financial | habit | outcome
   targetAmount?: number | null;
   currentAmount?: number;
   targetDate?: string | null;
   linkedBucket?: string | null; // legacy single
   linkedBuckets?: string[]; // multiple net-worth buckets
   notes?: string | null;
+  valueId?: string | null; // the value this goal serves
 };
+
+const GOAL_KINDS = new Set(["financial", "habit", "outcome"]);
 
 // Multiple linked buckets are stored comma-separated in the existing
 // `linkedBucket` column (bucket names never contain commas).
@@ -36,11 +40,13 @@ async function normalise(body: GoalInput) {
   return {
     name: (body.name ?? "").trim(),
     term: body.term === "long" ? "long" : "short",
+    kind: GOAL_KINDS.has(body.kind ?? "") ? body.kind! : "financial",
     targetAmount: body.targetAmount != null && !Number.isNaN(body.targetAmount) ? body.targetAmount : null,
     currentAmount: synced ?? manual,
     targetDate: body.targetDate ? new Date(body.targetDate + "T00:00:00.000Z") : null,
     linkedBucket: buckets.length ? buckets.join(",") : null,
     notes: body.notes?.trim() || null,
+    valueId: body.valueId?.trim() || null,
   };
 }
 
